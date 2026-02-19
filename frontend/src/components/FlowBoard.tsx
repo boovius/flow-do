@@ -10,15 +10,24 @@ const COLUMNS: { unit: TimeUnit; label: string; getDateRange: () => string }[] =
   { unit: "season", label: "Season", getDateRange: getSeasonLabel },
 ]
 
+function getInitialFocused(): TimeUnit | null {
+  // On mobile viewports, default to Today so the board is usable immediately
+  if (typeof window !== "undefined" && window.innerWidth < 768) {
+    return "today"
+  }
+  return null
+}
+
 export function FlowBoard() {
-  const [focused, setFocused] = useState<TimeUnit | null>(null)
+  const [focused, setFocused] = useState<TimeUnit | null>(getInitialFocused)
 
   const handleFocus = (unit: TimeUnit) => {
     setFocused((prev) => (prev === unit ? null : unit))
   }
 
   return (
-    <div className="flex h-full">
+    // overflow-visible lets the left-side drop shadows bleed across column boundaries
+    <div className="flex h-full overflow-visible">
       {COLUMNS.map((col) => (
         <TimeUnitColumn
           key={col.unit}
