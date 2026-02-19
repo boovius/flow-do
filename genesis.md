@@ -58,6 +58,37 @@ When a time period resets (new day, new week, etc.), the completion count for th
 Weeks run Monday -> Sunday by default. This is user-configurable to any preferred start day.
 Months will be 1 - end of month (28/30/31)
 
+## UI / Visual design
+
+### Present section layout
+The Present section is a kanban-style board with four time-unit columns arranged left to right:
+
+**Today → Week → Month → Season**
+
+The board should feel like a living river — tasks cascade down from Season (the widest, most expansive view) into the most immediate unit (Today). The visual metaphor is water flowing: broad and slow at the Season level, narrower and faster as it approaches Today.
+
+#### Default view (all at a glance)
+All four columns are visible simultaneously at equal width. This gives the user a full read of their season from a single screen. Each column header shows:
+- The unit name (Today / Week / Month / Season)
+- The current date range for that unit (e.g. "Mon, Feb 19" / "Feb 16 – 22" / "February 2026" / "Winter 2026")
+
+#### Zoom / focus mode
+Clicking a column header expands it to dominate the layout. The other columns collapse to thin vertical strips showing only their title (rotated 90°, still tappable). Clicking the active column or any collapsed column switches focus. This transition should be smooth and animated — the fluidity of the animation IS the design.
+
+The zoom mechanic is touch-friendly by design: tap to focus, tap again to collapse. This maps cleanly to a future mobile swipe gesture.
+
+#### Visual language
+- Elegant and minimal. Let whitespace and motion do the work.
+- Subtle visual differentiation between columns (typography weight, muted tints) to convey temporal depth — Today feels present and immediate, Season feels expansive and ambient.
+- Dividers between columns should feel soft, not harsh — the boundary between time units is permeable.
+- Animation easing should feel fluid and organic, not mechanical.
+- No clutter. Every pixel should earn its place.
+
+### App sections (top-level navigation)
+Two primary sections, accessible from the app header:
+- **Present** — the 4-column flow board (Today / Week / Month / Season)
+- **Vision** — 3-5 Year and Year goals with Why, core principles alignment (v1 scope, visual TBD)
+
 ## Scope
 ### v1
 - Vision section (3-5 Year, Year) with completable/moveable items and extra attributes (Why, core principles)
