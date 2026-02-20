@@ -1,6 +1,5 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from gotrue.errors import AuthApiError
 from app.core.supabase import supabase
 
 security = HTTPBearer()
@@ -20,9 +19,11 @@ def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return {"sub": str(user.id), "email": user.email}
-    except AuthApiError as e:
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
+            detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e

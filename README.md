@@ -136,6 +136,50 @@ Write your SQL in the generated file, then run `supabase db push` to apply it.
 
 > **First time only:** The initial migration (`20260220000000_create_dos.sql`) creates the `dos` table. If you already ran the old `schema.sql` manually in the SQL editor, `supabase db push` may report it as already applied or conflict — in that case you can mark it as applied with `supabase migration repair --status applied 20260220000000`.
 
+## Authentication
+
+### How it works
+
+Authentication is split across two layers.
+
+**Frontend — Supabase Auth client**
+
+The user logs in via `supabase.auth.signInWithPassword()`. On success, Supabase returns a JWT (JSON Web Token) — a signed, self-contained string encoding the user's ID, email, and expiry. The Supabase JS client stores and refreshes this token automatically. Every outbound API request attaches it via an Axios request interceptor:
+
+```
+Authorization: Bearer <jwt>
+```
+
+**Backend — remote token verification**
+
+On every authenticated endpoint, FastAPI's `get_current_user` dependency (`backend/app/middleware/auth.py`) takes the bearer token and calls:
+
+```python
+response = supabase.auth.get_user(token)
+```
+
+This makes an HTTP request to Supabase's auth service (`GET /auth/v1/user` with the token as the bearer). Supabase validates the token on their end — checking the signature, expiry, and that it was issued by this project — and returns the user object if valid. The dependency then extracts `user.id` and `user.email` for use in the endpoint.
+
+### Why this approach (and the trade-off)
+
+Supabase has been migrating between two JWT signing systems: an older symmetric scheme (HS256, using a shared secret) and a newer asymmetric scheme (RS256, using a public/private key pair). The transition means it's non-trivial to determine at setup time which algorithm a given project is using, making local cryptographic verification fragile.
+
+Delegating validation to `supabase.auth.get_user()` sidesteps the problem entirely — Supabase always knows how it signed the token. It requires zero configuration beyond the Supabase URL and service key we already have.
+
+The cost is latency: every authenticated API request makes an additional HTTP round-trip to Supabase's auth service (~50–150ms depending on network and region) before the actual work begins.
+
+### Future: moving to local JWT verification
+
+When it makes sense to optimise, the remote verification call can be replaced with local cryptographic signature checking. This eliminates the auth round-trip entirely. Items to consider when making that switch:
+
+- **Determine the signing algorithm.** Check your Supabase project's JWT Keys settings (Settings → JWT Keys). New projects use RS256 (asymmetric); older projects may use HS256 (symmetric secret). The verification code must match.
+- **For RS256 — use the JWKS endpoint.** Supabase exposes public keys at `{SUPABASE_URL}/auth/v1/.well-known/jwks.json`. Use a library with JWKS support (e.g. `PyJWT` with `PyJWKClient`) to fetch and cache the public key, then verify the signature locally. Keys should be cached and refreshed on a schedule or on cache miss.
+- **For HS256 — use the legacy JWT secret.** Available at Settings → JWT Keys → Legacy JWT Secret. Use `PyJWT` or `python-jose` with `algorithms=["HS256"]` and the secret as the key.
+- **Validate all claims.** Whichever algorithm is used, explicitly verify: `aud` (should be `"authenticated"`), `exp` (not expired), and `iss` (matches your Supabase project URL). Don't just check the signature.
+- **Cache the signing key.** For RS256, the JWKS fetch itself is a network call. Cache the key in process memory and refresh it only when a token's `kid` header doesn't match the cached key (i.e. after a key rotation). This avoids a network call on every request.
+- **Handle key rotation.** Supabase may rotate signing keys. A request that fails signature verification with the cached key should trigger a JWKS refresh before being rejected, to avoid false 401s during a rotation event.
+- **Keep the token expiry short.** Local verification has no way to honour server-side session revocation (e.g. a user who has been force-logged-out). Supabase's default access token expiry is 1 hour — consider whether that window is acceptable, or add a lightweight revocation check for sensitive endpoints.
+
 ## Tech stack
 
 | Layer | Technology |
