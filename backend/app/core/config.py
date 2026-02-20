@@ -10,5 +10,9 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
 
+    # Secret used to authenticate calls to the internal /flow-up endpoint.
+    # Set this to a long random string. Generate one with: openssl rand -hex 32
+    CRON_SECRET: str = ""
+
 
 settings = Settings()
