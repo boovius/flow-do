@@ -51,6 +51,61 @@ export function useToggleDo() {
   })
 }
 
+export function useMoveDo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      toUnit,
+    }: {
+      id: string
+      fromUnit: TimeUnit
+      toUnit: TimeUnit
+    }) => {
+      const { data } = await api.patch<Do>(`/api/v1/dos/${id}`, {
+        time_unit: toUnit,
+      })
+      return data
+    },
+    onMutate: async ({ id, fromUnit, toUnit }) => {
+      // Cancel any in-flight refetches for affected columns
+      await queryClient.cancelQueries({ queryKey: ["dos", fromUnit] })
+      await queryClient.cancelQueries({ queryKey: ["dos", toUnit] })
+
+      // Snapshot current state for rollback
+      const previousFrom = queryClient.getQueryData<Do[]>(["dos", fromUnit])
+      const previousTo = queryClient.getQueryData<Do[]>(["dos", toUnit])
+
+      // Optimistically move the item
+      const movingItem = previousFrom?.find((d) => d.id === id)
+      if (movingItem) {
+        queryClient.setQueryData<Do[]>(["dos", fromUnit], (old) =>
+          old?.filter((d) => d.id !== id) ?? [],
+        )
+        queryClient.setQueryData<Do[]>(["dos", toUnit], (old) => [
+          ...(old ?? []),
+          { ...movingItem, time_unit: toUnit },
+        ])
+      }
+
+      return { previousFrom, previousTo, fromUnit, toUnit }
+    },
+    onError: (_err, _vars, context) => {
+      // Roll back both columns on failure
+      if (context?.previousFrom !== undefined) {
+        queryClient.setQueryData(["dos", context.fromUnit], context.previousFrom)
+      }
+      if (context?.previousTo !== undefined) {
+        queryClient.setQueryData(["dos", context.toUnit], context.previousTo)
+      }
+    },
+    onSettled: (_data, _err, { fromUnit, toUnit }) => {
+      void queryClient.invalidateQueries({ queryKey: ["dos", fromUnit] })
+      void queryClient.invalidateQueries({ queryKey: ["dos", toUnit] })
+    },
+  })
+}
+
 export function useDeleteDo() {
   const queryClient = useQueryClient()
   return useMutation({

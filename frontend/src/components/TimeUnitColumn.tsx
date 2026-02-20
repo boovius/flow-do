@@ -1,3 +1,4 @@
+import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
 import { useDos, useCreateDo } from "@/hooks/useDos"
 import { DoItem } from "@/components/DoItem"
@@ -55,6 +56,7 @@ export function TimeUnitColumn({
   const style = COLUMN_STYLE[unit]
   const { data: dos = [], isLoading } = useDos(unit)
   const createDo = useCreateDo()
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: unit })
 
   return (
     <div
@@ -111,9 +113,15 @@ export function TimeUnitColumn({
         )}
       </button>
 
-      {/* Body */}
+      {/* Body — also the drop target */}
       {!isCollapsed && (
-        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
+        <div
+          ref={setDropRef}
+          className={cn(
+            "flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 transition-colors duration-150",
+            isOver && "bg-[#202945]/[0.04]",
+          )}
+        >
           {isLoading ? (
             <LoadingSkeleton />
           ) : dos.length === 0 ? (

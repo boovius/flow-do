@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
 import { useToggleDo, useDeleteDo } from "@/hooks/useDos"
 import type { Do } from "@/types"
@@ -10,8 +11,32 @@ export function DoItem({ item }: Props) {
   const toggle = useToggleDo()
   const remove = useDeleteDo()
 
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: item.id,
+    data: { timeUnit: item.time_unit, do: item },
+  })
+
   return (
-    <div className="group flex items-start gap-2.5 py-2 px-1 rounded-md hover:bg-black/[0.03] transition-colors">
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "group flex items-start gap-2 py-2 px-1 rounded-md transition-colors",
+        isDragging
+          ? "opacity-30"
+          : "hover:bg-black/[0.03]",
+      )}
+    >
+      {/* Drag handle — grab cursor, only listeners here so checkbox still works */}
+      <button
+        {...listeners}
+        {...attributes}
+        className="mt-0.5 flex-none cursor-grab active:cursor-grabbing text-[#a9bab3]/40 hover:text-[#a9bab3] transition-colors opacity-0 group-hover:opacity-100"
+        tabIndex={-1}
+        aria-label="Drag to move"
+      >
+        <GripIcon />
+      </button>
+
       {/* Circle checkbox */}
       <button
         onClick={() =>
@@ -52,7 +77,7 @@ export function DoItem({ item }: Props) {
         {item.title}
       </span>
 
-      {/* Flow count badge — shows if this do has bounced back up */}
+      {/* Flow count badge */}
       {item.flow_count > 0 && !item.completed && (
         <span
           className="text-[10px] text-[#7b8ea6]/60 flex-none mt-0.5"
@@ -62,7 +87,7 @@ export function DoItem({ item }: Props) {
         </span>
       )}
 
-      {/* Delete — only visible on hover */}
+      {/* Delete */}
       <button
         onClick={() => remove.mutate({ id: item.id, timeUnit: item.time_unit })}
         className="opacity-0 group-hover:opacity-100 transition-opacity text-[#a9bab3] hover:text-[#202945] flex-none text-xs leading-5"
@@ -71,5 +96,18 @@ export function DoItem({ item }: Props) {
         ×
       </button>
     </div>
+  )
+}
+
+function GripIcon() {
+  return (
+    <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+      <circle cx="2" cy="2" r="1.2" />
+      <circle cx="6" cy="2" r="1.2" />
+      <circle cx="2" cy="6" r="1.2" />
+      <circle cx="6" cy="6" r="1.2" />
+      <circle cx="2" cy="10" r="1.2" />
+      <circle cx="6" cy="10" r="1.2" />
+    </svg>
   )
 }
