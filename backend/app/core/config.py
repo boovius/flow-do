@@ -10,9 +10,5 @@ class Settings(BaseSettings):
 
     ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
 
-    @property
-    def SUPABASE_JWKS_URL(self) -> str:
-        return f"{self.SUPABASE_URL}/auth/v1/.well-known/jwks.json"
-
 
 settings = Settings()

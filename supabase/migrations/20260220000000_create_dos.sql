@@ -1,6 +1,5 @@
--- ============================================================
--- Run this in: Supabase Dashboard → SQL Editor → New query
--- ============================================================
+-- Migration: create_dos
+-- Creates the core dos table with RLS policies and staleness tracking fields.
 
 create table if not exists dos (
   id           uuid        primary key default gen_random_uuid(),
@@ -9,13 +8,12 @@ create table if not exists dos (
   time_unit    text        not null check (time_unit in ('today', 'week', 'month', 'season', 'year', 'multi_year')),
   completed    boolean     not null default false,
   completed_at timestamptz,
-  days_in_unit integer     not null default 0,  -- staleness: days in this unit without completion
-  flow_count   integer     not null default 0,  -- how many times this do has flowed up
+  days_in_unit integer     not null default 0,
+  flow_count   integer     not null default 0,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
 
--- Row Level Security
 alter table dos enable row level security;
 
 create policy "Users can view their own dos"
@@ -30,7 +28,6 @@ create policy "Users can update their own dos"
 create policy "Users can delete their own dos"
   on dos for delete using (auth.uid() = user_id);
 
--- Auto-update updated_at on row change
 create or replace function update_updated_at()
 returns trigger as $$
 begin

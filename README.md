@@ -6,9 +6,11 @@ A time-aware todo app that flows tasks through time — from Today up through We
 
 ```
 flow-do/
-├── backend/      # FastAPI (Python)
-├── frontend/     # React + TypeScript (Vite)
-└── genesis.md    # Product brief and design decisions
+├── backend/              # FastAPI (Python)
+├── frontend/             # React + TypeScript (Vite)
+├── supabase/
+│   └── migrations/       # Versioned SQL migrations (Supabase CLI)
+└── genesis.md            # Product brief and design decisions
 ```
 
 ## Prerequisites
@@ -33,7 +35,7 @@ Go to your Supabase project → **Settings → API**:
 
 > **Note on the anon key:** The name is confusing — it doesn't mean "anonymous user". Think of it as the public client key. It's used both before login (for the sign-in/sign-up calls) and after (because the JWT itself carries the user's identity). What a user can do with it is controlled by Row Level Security rules on your database tables.
 
-> **Note on JWT verification:** You do not need to copy any JWT secret. The backend verifies tokens by fetching Supabase's public signing keys from a JWKS endpoint (`{SUPABASE_URL}/auth/v1/.well-known/jwks.json`) automatically. This works with Supabase's current asymmetric signing key system. Do not use the "Legacy JWT Secret" tab in Settings → JWT Keys — that system has been superseded.
+> **Note on JWT verification:** No JWT secret needed. The backend verifies tokens by calling `supabase.auth.get_user(token)` — Supabase validates the token server-side and returns the user. This works regardless of which signing key system your project uses.
 
 ## Local development
 
@@ -98,6 +100,42 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_API_URL=http://localhost:8000
 ```
 
+## Database migrations
+
+Schema changes are tracked as versioned SQL files in `supabase/migrations/`. Each file is named `YYYYMMDDHHMMSS_description.sql` and applied in order.
+
+### Setup (one time)
+
+```bash
+# Install the Supabase CLI
+brew install supabase/tap/supabase   # macOS
+# or: npm install -g supabase
+
+# Log in and link to your hosted project
+supabase login
+supabase link --project-ref your-project-ref   # the ref from your Supabase URL
+```
+
+### Apply migrations to your hosted database
+
+```bash
+supabase db push
+```
+
+This runs any migration files that haven't been applied yet against your remote Postgres.
+
+### Create a new migration
+
+```bash
+supabase migration new <description>
+# e.g. supabase migration new add_vision_items
+# Creates: supabase/migrations/YYYYMMDDHHMMSS_add_vision_items.sql
+```
+
+Write your SQL in the generated file, then run `supabase db push` to apply it.
+
+> **First time only:** The initial migration (`20260220000000_create_dos.sql`) creates the `dos` table. If you already ran the old `schema.sql` manually in the SQL editor, `supabase db push` may report it as already applied or conflict — in that case you can mark it as applied with `supabase migration repair --status applied 20260220000000`.
+
 ## Tech stack
 
 | Layer | Technology |
@@ -107,5 +145,5 @@ VITE_API_URL=http://localhost:8000
 | UI components | shadcn/ui + Tailwind CSS v4 |
 | Server state | TanStack Query |
 | Database | Supabase (Postgres) |
-| Auth | Supabase Auth (JWT via JWKS) |
+| Auth | Supabase Auth (JWT verified via `auth.get_user`) |
 | Deployment (planned) | Render (backend), Vercel (frontend) |
