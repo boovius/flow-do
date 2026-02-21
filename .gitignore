@@ -11,6 +11,9 @@ frontend/dist/
 frontend/.env
 frontend/.env.local
 
+# Supabase
+supabase/.temp/
+
 # General
 .DS_Store
 *.env
