@@ -223,6 +223,155 @@ Set `CRON_SECRET` in `backend/.env` to any random string:
 openssl rand -hex 32
 ```
 
+## Deployment
+
+The backend runs on **Render** (Python web service), the frontend on **Vercel** (static site). Both connect to the same Supabase project you already use for local development.
+
+### Before you start
+
+1. **Apply your database migrations** to the hosted Supabase database if you haven't yet:
+   ```bash
+   supabase db push
+   ```
+
+2. **Generate a `CRON_SECRET`** if you don't have one — you'll need it for the flow-up endpoint:
+   ```bash
+   openssl rand -hex 32
+   ```
+   Keep this value handy; you'll paste it into Render's environment variables.
+
+---
+
+### Step 1 — Deploy the backend to Render
+
+1. Go to [render.com](https://render.com) → **New → Web Service**
+2. Connect your GitHub repo and set **Root Directory** to `backend`
+3. Render will auto-detect Python. Confirm these settings:
+
+   | Setting | Value |
+   |---|---|
+   | **Runtime** | Python 3 |
+   | **Build command** | `pip install -r requirements.txt` |
+   | **Start command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+
+4. Under **Environment Variables**, add:
+
+   | Key | Value |
+   |---|---|
+   | `SUPABASE_URL` | Your Supabase project URL |
+   | `SUPABASE_ANON_KEY` | Your Supabase anon key |
+   | `SUPABASE_SERVICE_KEY` | Your Supabase service role key |
+   | `CRON_SECRET` | The secret you generated above |
+   | `ALLOWED_ORIGINS` | Leave blank for now — you'll fill this in after Vercel deploys |
+
+5. Click **Create Web Service**. Once it's live, copy the URL (e.g. `https://flow-do-api.onrender.com`).
+
+> **Free tier note:** Render's free tier spins the server down after 15 minutes of inactivity. The first request after sleep takes ~30–60 seconds. This also means the in-process midnight cron job won't fire while the server is asleep — see **Step 4** for the recommended fix.
+
+---
+
+### Step 2 — Deploy the frontend to Vercel
+
+1. Go to [vercel.com](https://vercel.com) → **Add New → Project**
+2. Import your GitHub repo and set **Root Directory** to `frontend`
+3. Vercel will auto-detect Vite. Confirm these settings:
+
+   | Setting | Value |
+   |---|---|
+   | **Framework Preset** | Vite |
+   | **Build command** | `npm run build` |
+   | **Output directory** | `dist` |
+
+4. Under **Environment Variables**, add:
+
+   | Key | Value |
+   |---|---|
+   | `VITE_SUPABASE_URL` | Your Supabase project URL |
+   | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key |
+   | `VITE_API_URL` | The Render URL from Step 1 (e.g. `https://flow-do-api.onrender.com`) |
+
+5. Click **Deploy**. Once live, copy the Vercel URL (e.g. `https://flow-do.vercel.app`).
+
+> **SPA routing:** `frontend/vercel.json` already includes a catch-all rewrite rule so that refreshing or directly visiting any URL returns `index.html` instead of a 404.
+
+---
+
+### Step 3 — Wire CORS
+
+Now that you have the Vercel URL, go back to your Render service → **Environment** and set:
+
+| Key | Value |
+|---|---|
+| `ALLOWED_ORIGINS` | `https://flow-do.vercel.app` (your actual Vercel URL) |
+
+Render will redeploy automatically. Your frontend and backend are now connected.
+
+---
+
+### Step 4 — Reliable nightly flow-up (recommended)
+
+The in-process APScheduler cron runs inside the FastAPI process — if the server is asleep at midnight it won't fire. The safest production approach is an **external trigger** on a schedule.
+
+#### Option A — Render Cron Job (simplest)
+
+1. In Render, **New → Cron Job**
+2. Connect the same repo, root directory `backend`
+3. Set:
+
+   | Setting | Value |
+   |---|---|
+   | **Schedule** | `0 0 * * *` (daily at 00:00 UTC) |
+   | **Command** | `curl -s -X POST $BACKEND_URL/api/v1/internal/flow-up -H "X-Cron-Secret: $CRON_SECRET"` |
+
+4. Add `BACKEND_URL` and `CRON_SECRET` as environment variables on the cron job.
+
+#### Option B — GitHub Actions
+
+Create `.github/workflows/flow-up.yml`:
+
+```yaml
+name: Nightly flow-up
+on:
+  schedule:
+    - cron: "0 0 * * *"   # 00:00 UTC daily
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  flow-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger flow-up
+        run: |
+          curl -s -X POST ${{ secrets.BACKEND_URL }}/api/v1/internal/flow-up \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}"
+```
+
+Add `BACKEND_URL` and `CRON_SECRET` in your GitHub repo → **Settings → Secrets and variables → Actions**.
+
+---
+
+### Deployment environment variable reference
+
+**Render (backend)**
+
+| Variable | Value |
+|---|---|
+| `SUPABASE_URL` | `https://your-project-ref.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key |
+| `ALLOWED_ORIGINS` | Your Vercel URL (e.g. `https://flow-do.vercel.app`) |
+| `CRON_SECRET` | Random secret for the `/flow-up` endpoint |
+
+**Vercel (frontend)**
+
+| Variable | Value |
+|---|---|
+| `VITE_SUPABASE_URL` | `https://your-project-ref.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
+| `VITE_API_URL` | Your Render URL (e.g. `https://flow-do-api.onrender.com`) |
+
+---
+
 ## Tech stack
 
 | Layer | Technology |
