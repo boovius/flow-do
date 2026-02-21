@@ -10,13 +10,18 @@ FLOW DO ROADMAP
 * Add parent relationship
   * hovering over Do draws its lineage up
   * show lineage down option
-* Add Tags to Dos
-* Add DueDates to Dos
-* Add Categories to Dos
-* Turn dos into maintenance
+* Turn dos into maintenance and vice versa
+
+## Secondary
+
+* Add secondary attrs to to Dos
+
+  * Add Tags to Dos
+  * Add DueDates to Dos
+  * Add Categories to Dos
 * Mobile native iOS
 * Mobile native android
 
-## Secondary
+## Extensions
 
 * Time Blocking - block recurring periods of time throughout ones week.
