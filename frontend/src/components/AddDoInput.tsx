@@ -32,6 +32,18 @@ export function AddDoInput({ onAdd, disabled }: Props) {
   }
 
   if (!isOpen) {
+    if (disabled) {
+      return (
+        <div className="flex items-center gap-1.5 w-full px-1 py-1.5 text-sm text-[#a9bab3]">
+          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.3" />
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span>Adding…</span>
+        </div>
+      )
+    }
+
     return (
       <button
         onClick={() => setIsOpen(true)}

@@ -34,6 +34,7 @@ export function DoItem({ item }: Props) {
           ? "opacity-30"
           : "bg-white/70 shadow-sm hover:bg-white/90 hover:shadow-md",
         isMaintenance && "cursor-pointer",
+        isMaintenance && logMaintenance.isPending && "pointer-events-none opacity-60",
       )}
     >
       {/* Drag handle */}
@@ -63,11 +64,13 @@ export function DoItem({ item }: Props) {
               completed: !item.completed,
             })
           }
+          disabled={toggle.isPending}
           className={cn(
             "mt-1 h-6 w-6 rounded-full border-2 flex-none transition-all duration-150 grid place-items-center",
             item.completed
               ? "bg-[#202945] border-[#202945]"
               : "border-[#a9bab3] hover:border-[#7b8ea6]",
+            toggle.isPending && "opacity-50 animate-pulse",
           )}
           aria-label={item.completed ? "Mark incomplete" : "Mark complete"}
         >
@@ -118,10 +121,11 @@ export function DoItem({ item }: Props) {
           e.stopPropagation()
           remove.mutate({ id: item.id, timeUnit: item.time_unit })
         }}
-        className="opacity-0 group-hover:opacity-100 transition-opacity text-[#a9bab3] hover:text-[#202945] flex-none text-base leading-6"
+        disabled={remove.isPending}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-[#a9bab3] hover:text-[#202945] flex-none text-base leading-6 grid place-items-center"
         aria-label="Delete"
       >
-        ×
+        {remove.isPending ? <SpinnerIcon /> : "×"}
       </button>
     </div>
   )
@@ -136,6 +140,15 @@ function GripIcon() {
       <circle cx="6" cy="6" r="1.2" />
       <circle cx="2" cy="10" r="1.2" />
       <circle cx="6" cy="10" r="1.2" />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeOpacity="0.3" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
