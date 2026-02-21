@@ -180,6 +180,49 @@ When it makes sense to optimise, the remote verification call can be replaced wi
 - **Handle key rotation.** Supabase may rotate signing keys. A request that fails signature verification with the cached key should trigger a JWKS refresh before being rejected, to avoid false 401s during a rotation event.
 - **Keep the token expiry short.** Local verification has no way to honour server-side session revocation (e.g. a user who has been force-logged-out). Supabase's default access token expiry is 1 hour — consider whether that window is acceptable, or add a lightweight revocation check for sensitive endpoints.
 
+## Flow-up cron job
+
+### How time flow works
+
+There are no per-item expiration timestamps. Flow is **structural**: the rule is purely based on what time unit an item is in and what day it is today. Every uncompleted `today` item flows to `week` every night — no exceptions. This keeps the data model simple and the logic easy to reason about.
+
+| Item's current unit | Condition | Flows to |
+|---|---|---|
+| `today` | every day | `week` |
+| `week` | Mondays only | `month` |
+| `month` | 1st of each month | `season` |
+| `season` | Mar/Jun/Sep/Dec 1st | `year` |
+
+Items that flow get `flow_count + 1` and `days_in_unit` reset to 0. Items that stay accumulate `days_in_unit` as a staleness counter (used for future UI indicators).
+
+### Implementation
+
+All logic lives in **`backend/app/services/flow_up.py`** — no stored procedures. The function:
+
+1. Fetches all uncompleted dos in one query
+2. Evaluates today's UTC date to determine which transitions are active
+3. Computes each item's new state in Python
+4. Applies all changes in a single batch upsert
+
+### Scheduler
+
+APScheduler (`BackgroundScheduler`) runs `run_flow_up()` daily at **00:00 UTC** inside the FastAPI process. It starts and stops with the server via the FastAPI lifespan in `backend/app/main.py`. If the server is down at midnight, the job won't fire for that day — acceptable for local dev, something to address in production via the external trigger below.
+
+### Manual trigger / external cron
+
+```bash
+curl -X POST http://localhost:8000/api/v1/internal/flow-up \
+  -H "X-Cron-Secret: <your CRON_SECRET from backend/.env>"
+```
+
+This calls the exact same `run_flow_up()` function on demand. Useful for testing, and for production on Render where a separate Render Cron Job or GitHub Actions scheduled workflow can hit this endpoint independently of the in-process scheduler.
+
+Set `CRON_SECRET` in `backend/.env` to any random string:
+
+```bash
+openssl rand -hex 32
+```
+
 ## Tech stack
 
 | Layer | Technology |

@@ -135,3 +135,29 @@ Web-first, but built with mobile in mind:
 - Cron jobs run server-side (FastAPI background scheduler or Render cron) to handle automatic flow-up at time unit expiry
 - Supabase caching for a user's "Present" state on load; discrete item details fetched on demand
 - Data model should anticipate AI-assisted flow-down (v2+): store task history, staleness counts, and user interaction patterns from day one
+
+### Flow-up cron job implementation
+
+The daily flow-up is implemented entirely in the Python API layer — no stored procedures. This keeps business logic in one place (version-controlled Python), easy to test, and easy to extend.
+
+**Schedule**
+APScheduler (`BackgroundScheduler`) runs `run_flow_up()` daily at 00:00 UTC inside the FastAPI process lifespan. For production on Render, the same endpoint can be hit by an external cron service.
+
+**External trigger**
+`POST /api/v1/internal/flow-up` — protected by an `X-Cron-Secret` header (not a user JWT). This lets Render cron, GitHub Actions, or any external scheduler trigger the job independently of the in-process scheduler. The secret is set via the `CRON_SECRET` environment variable.
+
+**Python logic (in `backend/app/services/flow_up.py`)**
+1. Fetch all uncompleted dos (id, time_unit, days_in_unit, flow_count) in one query.
+2. Evaluate today's UTC date to determine which transitions are active:
+   - `today → week` — every day
+   - `week → month` — Mondays only (ISO day-of-week = 1)
+   - `month → season` — 1st of each month
+   - `season → year` — season starts only (Mar 1, Jun 1, Sep 1, Dec 1)
+3. For each item, compute its new state in Python:
+   - Flowing item: new `time_unit`, `flow_count + 1`, `days_in_unit = 0`
+   - Non-flowing item: `days_in_unit + 1`
+4. Batch-upsert all changes in a single Supabase call.
+5. Return a summary dict (`{"today_to_week": N, "week_to_month": N, ...}`) for logging and the HTTP response.
+
+**Why Python, not a stored procedure?**
+Business logic in the database is hard to test, invisible to code review, and requires a migration to change. Keeping it in Python means the rules live alongside every other piece of application logic, can be unit-tested with mocks, and are just a file edit away from modification.
