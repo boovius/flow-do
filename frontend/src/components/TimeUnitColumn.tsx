@@ -139,7 +139,7 @@ export function TimeUnitColumn({
           {isLoading ? (
             <LoadingSkeleton />
           ) : dos.length === 0 ? (
-            <EmptyState unit={label} isFocused={isFocused} />
+            <EmptyState isFocused={isFocused} />
           ) : (
             dos.map((item) => <DoItem key={item.id} item={item} />)
           )}
@@ -159,7 +159,7 @@ export function TimeUnitColumn({
   )
 }
 
-function EmptyState({ unit, isFocused }: { unit: string; isFocused: boolean }) {
+function EmptyState({ isFocused }: { isFocused: boolean }) {
   return (
     <div
       className={cn(

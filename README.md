@@ -27,11 +27,11 @@ Go to your Supabase project → **Settings → API**:
 
 > **Finding the Project URL:** It's labeled "Project URL" at the top of the Settings → API page. It looks like `https://abcdefghijklm.supabase.co`. You can also read the project ref from your browser's address bar when viewing the project — it's the random string in the URL.
 
-| Variable | Where to find it | What it's for |
-|---|---|---|
-| `SUPABASE_URL` | Settings → API → "Project URL" | The base URL of your Supabase project |
-| `SUPABASE_ANON_KEY` | Settings → API → "Project API keys → anon / public" | Public key used by the browser. Safe to expose. Access is controlled by Row Level Security policies on your tables. |
-| `SUPABASE_SERVICE_KEY` | Settings → API → "Project API keys → service_role" | Superuser key that bypasses all security rules. **Backend only — never expose this to the browser.** |
+| Variable                 | Where to find it                                       | What it's for                                                                                                       |
+| ------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `SUPABASE_URL`         | Settings → API → "Project URL"                       | The base URL of your Supabase project                                                                               |
+| `SUPABASE_ANON_KEY`    | Settings → API → "Project API keys → anon / public" | Public key used by the browser. Safe to expose. Access is controlled by Row Level Security policies on your tables. |
+| `SUPABASE_SERVICE_KEY` | Settings → API → "Project API keys → service_role"  | Superuser key that bypasses all security rules.**Backend only — never expose this to the browser.**          |
 
 > **Note on the anon key:** The name is confusing — it doesn't mean "anonymous user". Think of it as the public client key. It's used both before login (for the sign-in/sign-up calls) and after (because the JWT itself carries the user's identity). What a user can do with it is controlled by Row Level Security rules on your database tables.
 
@@ -186,12 +186,12 @@ When it makes sense to optimise, the remote verification call can be replaced wi
 
 There are no per-item expiration timestamps. Flow is **structural**: the rule is purely based on what time unit an item is in and what day it is today. Every uncompleted `today` item flows to `week` every night — no exceptions. This keeps the data model simple and the logic easy to reason about.
 
-| Item's current unit | Condition | Flows to |
-|---|---|---|
-| `today` | every day | `week` |
-| `week` | Mondays only | `month` |
-| `month` | 1st of each month | `season` |
-| `season` | Mar/Jun/Sep/Dec 1st | `year` |
+| Item's current unit | Condition           | Flows to   |
+| ------------------- | ------------------- | ---------- |
+| `today`           | every day           | `week`   |
+| `week`            | Mondays only        | `month`  |
+| `month`           | 1st of each month   | `season` |
+| `season`          | Mar/Jun/Sep/Dec 1st | `year`   |
 
 Items that flow get `flow_count + 1` and `days_in_unit` reset to 0. Items that stay accumulate `days_in_unit` as a staleness counter (used for future UI indicators).
 
@@ -230,14 +230,16 @@ The backend runs on **Render** (Python web service), the frontend on **Vercel** 
 ### Before you start
 
 1. **Apply your database migrations** to the hosted Supabase database if you haven't yet:
+
    ```bash
    supabase db push
    ```
-
 2. **Generate a `CRON_SECRET`** if you don't have one — you'll need it for the flow-up endpoint:
+
    ```bash
    openssl rand -hex 32
    ```
+
    Keep this value handy; you'll paste it into Render's environment variables.
 
 ---
@@ -247,23 +249,19 @@ The backend runs on **Render** (Python web service), the frontend on **Vercel** 
 1. Go to [render.com](https://render.com) → **New → Web Service**
 2. Connect your GitHub repo and set **Root Directory** to `backend`
 3. Render will auto-detect Python. Confirm these settings:
-
-   | Setting | Value |
-   |---|---|
-   | **Runtime** | Python 3 |
-   | **Build command** | `pip install -r requirements.txt` |
+   | Setting                 | Value                                                |
+   | ----------------------- | ---------------------------------------------------- |
+   | **Runtime**       | Python 3                                             |
+   | **Build command** | `pip install -r requirements.txt`                  |
    | **Start command** | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-
 4. Under **Environment Variables**, add:
-
-   | Key | Value |
-   |---|---|
-   | `SUPABASE_URL` | Your Supabase project URL |
-   | `SUPABASE_ANON_KEY` | Your Supabase anon key |
-   | `SUPABASE_SERVICE_KEY` | Your Supabase service role key |
-   | `CRON_SECRET` | The secret you generated above |
-   | `ALLOWED_ORIGINS` | Leave blank for now — you'll fill this in after Vercel deploys |
-
+   | Key                      | Value                                                           |
+   | ------------------------ | --------------------------------------------------------------- |
+   | `SUPABASE_URL`         | Your Supabase project URL                                       |
+   | `SUPABASE_ANON_KEY`    | Your Supabase anon key                                          |
+   | `SUPABASE_SERVICE_KEY` | Your Supabase service role key                                  |
+   | `CRON_SECRET`          | The secret you generated above                                  |
+   | `ALLOWED_ORIGINS`      | Leave blank for now — you'll fill this in after Vercel deploys |
 5. Click **Create Web Service**. Once it's live, copy the URL (e.g. `https://flow-do-api.onrender.com`).
 
 > **Free tier note:** Render's free tier spins the server down after 15 minutes of inactivity. The first request after sleep takes ~30–60 seconds. This also means the in-process midnight cron job won't fire while the server is asleep — see **Step 4** for the recommended fix.
@@ -275,21 +273,17 @@ The backend runs on **Render** (Python web service), the frontend on **Vercel** 
 1. Go to [vercel.com](https://vercel.com) → **Add New → Project**
 2. Import your GitHub repo and set **Root Directory** to `frontend`
 3. Vercel will auto-detect Vite. Confirm these settings:
-
-   | Setting | Value |
-   |---|---|
-   | **Framework Preset** | Vite |
-   | **Build command** | `npm run build` |
-   | **Output directory** | `dist` |
-
+   | Setting                    | Value             |
+   | -------------------------- | ----------------- |
+   | **Framework Preset** | Vite              |
+   | **Build command**    | `npm run build` |
+   | **Output directory** | `dist`          |
 4. Under **Environment Variables**, add:
-
-   | Key | Value |
-   |---|---|
-   | `VITE_SUPABASE_URL` | Your Supabase project URL |
-   | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key |
-   | `VITE_API_URL` | The Render URL from Step 1 (e.g. `https://flow-do-api.onrender.com`) |
-
+   | Key                        | Value                                                                 |
+   | -------------------------- | --------------------------------------------------------------------- |
+   | `VITE_SUPABASE_URL`      | Your Supabase project URL                                             |
+   | `VITE_SUPABASE_ANON_KEY` | Your Supabase anon key                                                |
+   | `VITE_API_URL`           | The Render URL from Step 1 (e.g.`https://flow-do-api.onrender.com`) |
 5. Click **Deploy**. Once live, copy the Vercel URL (e.g. `https://flow-do.vercel.app`).
 
 > **SPA routing:** `frontend/vercel.json` already includes a catch-all rewrite rule so that refreshing or directly visiting any URL returns `index.html` instead of a 404.
@@ -300,8 +294,8 @@ The backend runs on **Render** (Python web service), the frontend on **Vercel** 
 
 Now that you have the Vercel URL, go back to your Render service → **Environment** and set:
 
-| Key | Value |
-|---|---|
+| Key                 | Value                                                   |
+| ------------------- | ------------------------------------------------------- |
 | `ALLOWED_ORIGINS` | `https://flow-do.vercel.app` (your actual Vercel URL) |
 
 Render will redeploy automatically. Your frontend and backend are now connected.
@@ -317,12 +311,10 @@ The in-process APScheduler cron runs inside the FastAPI process — if the serve
 1. In Render, **New → Cron Job**
 2. Connect the same repo, root directory `backend`
 3. Set:
-
-   | Setting | Value |
-   |---|---|
-   | **Schedule** | `0 0 * * *` (daily at 00:00 UTC) |
-   | **Command** | `curl -s -X POST $BACKEND_URL/api/v1/internal/flow-up -H "X-Cron-Secret: $CRON_SECRET"` |
-
+   | Setting            | Value                                                                                     |
+   | ------------------ | ----------------------------------------------------------------------------------------- |
+   | **Schedule** | `0 0 * * *` (daily at 00:00 UTC)                                                        |
+   | **Command**  | `curl -s -X POST $BACKEND_URL/api/v1/internal/flow-up -H "X-Cron-Secret: $CRON_SECRET"` |
 4. Add `BACKEND_URL` and `CRON_SECRET` as environment variables on the cron job.
 
 #### Option B — GitHub Actions
@@ -354,32 +346,32 @@ Add `BACKEND_URL` and `CRON_SECRET` in your GitHub repo → **Settings → Secre
 
 **Render (backend)**
 
-| Variable | Value |
-|---|---|
-| `SUPABASE_URL` | `https://your-project-ref.supabase.co` |
-| `SUPABASE_ANON_KEY` | Supabase anon key |
-| `SUPABASE_SERVICE_KEY` | Supabase service role key |
-| `ALLOWED_ORIGINS` | Your Vercel URL (e.g. `https://flow-do.vercel.app`) |
-| `CRON_SECRET` | Random secret for the `/flow-up` endpoint |
+| Variable                 | Value                                                |
+| ------------------------ | ---------------------------------------------------- |
+| `SUPABASE_URL`         | `https://your-project-ref.supabase.co`             |
+| `SUPABASE_ANON_KEY`    | Supabase anon key                                    |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key                            |
+| `ALLOWED_ORIGINS`      | Your Vercel URL (e.g.`https://flow-do.vercel.app`) |
+| `CRON_SECRET`          | Random secret for the `/flow-up` endpoint          |
 
 **Vercel (frontend)**
 
-| Variable | Value |
-|---|---|
-| `VITE_SUPABASE_URL` | `https://your-project-ref.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
-| `VITE_API_URL` | Your Render URL (e.g. `https://flow-do-api.onrender.com`) |
+| Variable                   | Value                                                      |
+| -------------------------- | ---------------------------------------------------------- |
+| `VITE_SUPABASE_URL`      | `https://your-project-ref.supabase.co`                   |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon key                                          |
+| `VITE_API_URL`           | Your Render URL (e.g.`https://flow-do-api.onrender.com`) |
 
 ---
 
 ## Tech stack
 
-| Layer | Technology |
-|---|---|
-| Backend | FastAPI (Python) |
-| Frontend | React 18, TypeScript, Vite |
-| UI components | shadcn/ui + Tailwind CSS v4 |
-| Server state | TanStack Query |
-| Database | Supabase (Postgres) |
-| Auth | Supabase Auth (JWT verified via `auth.get_user`) |
-| Deployment (planned) | Render (backend), Vercel (frontend) |
+| Layer                | Technology                                         |
+| -------------------- | -------------------------------------------------- |
+| Backend              | FastAPI (Python)                                   |
+| Frontend             | React 18, TypeScript, Vite                         |
+| UI components        | shadcn/ui + Tailwind CSS v4                        |
+| Server state         | TanStack Query                                     |
+| Database             | Supabase (Postgres)                                |
+| Auth                 | Supabase Auth (JWT verified via `auth.get_user`) |
+| Deployment (planned) | Render (backend), Vercel (frontend)                |
