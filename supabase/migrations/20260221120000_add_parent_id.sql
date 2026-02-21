@@ -1,0 +1,2 @@
+ALTER TABLE dos
+  ADD COLUMN parent_id uuid REFERENCES dos(id) ON DELETE SET NULL;

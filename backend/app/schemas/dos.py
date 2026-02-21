@@ -22,6 +22,7 @@ class DoCreate(BaseModel):
     title: str
     time_unit: TimeUnit
     do_type: DoType = DoType.normal
+    parent_id: uuid.UUID | None = None
 
 
 class DoUpdate(BaseModel):
@@ -29,6 +30,7 @@ class DoUpdate(BaseModel):
     completed: bool | None = None
     completed_at: datetime | None = None
     time_unit: TimeUnit | None = None
+    parent_id: uuid.UUID | None = None
 
 
 class Do(BaseModel):
@@ -44,3 +46,4 @@ class Do(BaseModel):
     completion_count: int
     created_at: datetime
     updated_at: datetime
+    parent_id: uuid.UUID | None = None

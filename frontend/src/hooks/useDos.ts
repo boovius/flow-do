@@ -14,15 +14,96 @@ export function useDos(timeUnit: TimeUnit) {
   })
 }
 
+export function useAllDos() {
+  return useQuery({
+    queryKey: ["dos", "all"],
+    queryFn: async () => {
+      const { data } = await api.get<Do[]>("/api/v1/dos")
+      return data
+    },
+  })
+}
+
 export function useCreateDo() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { title: string; time_unit: TimeUnit; do_type?: DoType }) => {
+    mutationFn: async (payload: { title: string; time_unit: TimeUnit; do_type?: DoType; parent_id?: string | null }) => {
       const { data } = await api.post<Do>("/api/v1/dos", payload)
       return data
     },
     onSuccess: (_, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["dos", variables.time_unit] })
+      void queryClient.invalidateQueries({ queryKey: ["dos", "all"] })
+    },
+  })
+}
+
+export function useSetParent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, parentId }: { id: string; parentId: string; timeUnit: TimeUnit }) => {
+      const { data } = await api.patch<Do>(`/api/v1/dos/${id}`, { parent_id: parentId })
+      return data
+    },
+    onMutate: async ({ id, parentId, timeUnit }) => {
+      await queryClient.cancelQueries({ queryKey: ["dos", timeUnit] })
+      await queryClient.cancelQueries({ queryKey: ["dos", "all"] })
+      const previousCol = queryClient.getQueryData<Do[]>(["dos", timeUnit])
+      const previousAll = queryClient.getQueryData<Do[]>(["dos", "all"])
+      queryClient.setQueryData<Do[]>(["dos", timeUnit], (old) =>
+        old?.map((d) => (d.id === id ? { ...d, parent_id: parentId } : d)) ?? [],
+      )
+      queryClient.setQueryData<Do[]>(["dos", "all"], (old) =>
+        old?.map((d) => (d.id === id ? { ...d, parent_id: parentId } : d)) ?? [],
+      )
+      return { previousCol, previousAll, timeUnit }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousCol !== undefined) {
+        queryClient.setQueryData(["dos", context.timeUnit], context.previousCol)
+      }
+      if (context?.previousAll !== undefined) {
+        queryClient.setQueryData(["dos", "all"], context.previousAll)
+      }
+    },
+    onSettled: (_data, _err, { timeUnit }) => {
+      void queryClient.invalidateQueries({ queryKey: ["dos", timeUnit] })
+      void queryClient.invalidateQueries({ queryKey: ["dos", "all"] })
+    },
+  })
+}
+
+export function useUnsetParent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; timeUnit: TimeUnit }) => {
+      const { data } = await api.patch<Do>(`/api/v1/dos/${id}`, { parent_id: null })
+      return data
+    },
+    onMutate: async ({ id, timeUnit }) => {
+      await queryClient.cancelQueries({ queryKey: ["dos", timeUnit] })
+      await queryClient.cancelQueries({ queryKey: ["dos", "all"] })
+      const previousCol = queryClient.getQueryData<Do[]>(["dos", timeUnit])
+      const previousAll = queryClient.getQueryData<Do[]>(["dos", "all"])
+      queryClient.setQueryData<Do[]>(["dos", timeUnit], (old) =>
+        old?.map((d) => (d.id === id ? { ...d, parent_id: null } : d)) ?? [],
+      )
+      queryClient.setQueryData<Do[]>(["dos", "all"], (old) =>
+        old?.map((d) => (d.id === id ? { ...d, parent_id: null } : d)) ?? [],
+      )
+      return { previousCol, previousAll, timeUnit }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousCol !== undefined) {
+        queryClient.setQueryData(["dos", context.timeUnit], context.previousCol)
+      }
+      if (context?.previousAll !== undefined) {
+        queryClient.setQueryData(["dos", "all"], context.previousAll)
+      }
+    },
+    onSettled: (_data, _err, { timeUnit }) => {
+      void queryClient.invalidateQueries({ queryKey: ["dos", timeUnit] })
+      void queryClient.invalidateQueries({ queryKey: ["dos", "all"] })
     },
   })
 }
@@ -169,6 +250,7 @@ export function useDeleteDo() {
     },
     onSuccess: (timeUnit) => {
       void queryClient.invalidateQueries({ queryKey: ["dos", timeUnit] })
+      void queryClient.invalidateQueries({ queryKey: ["dos", "all"] })
     },
   })
 }

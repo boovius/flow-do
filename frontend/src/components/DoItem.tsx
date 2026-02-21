@@ -1,8 +1,11 @@
-import { useState } from "react"
-import { useDraggable } from "@dnd-kit/core"
+import { useContext, useRef, useState } from "react"
+import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
-import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo } from "@/hooks/useDos"
+import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo } from "@/hooks/useDos"
 import { getPeriodLabel } from "@/lib/time"
+import { AncestryContext } from "@/components/FlowBoard"
+import { ParentPicker } from "@/components/ParentPicker"
+import { AncestryPanel } from "@/components/AncestryPanel"
 import type { Do, TimeUnit } from "@/types"
 
 const TIME_UNITS: TimeUnit[] = ["today", "week", "month", "season", "year", "multi_year"]
@@ -15,6 +18,16 @@ const TIME_UNIT_LABELS: Record<TimeUnit, string> = {
   multi_year: "3–5 Yr",
 }
 
+// One step smaller for the "add child" default time unit
+const CHILD_UNIT: Record<TimeUnit, TimeUnit> = {
+  multi_year: "year",
+  year: "season",
+  season: "month",
+  month: "week",
+  week: "today",
+  today: "today",
+}
+
 interface Props {
   item: Do
 }
@@ -25,15 +38,37 @@ export function DoItem({ item }: Props) {
   const logMaintenance = useLogMaintenance()
   const rename = useRenameDo()
   const move = useMoveDo()
+  const createDo = useCreateDo()
 
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { hoveredDoId, ancestorIds, onHover, allDos } = useContext(AncestryContext)
+  const isHovered = hoveredDoId === item.id
+  const isAncestor = ancestorIds.has(item.id)
+  const isDimmed = hoveredDoId !== null && !isHovered && !isAncestor
+
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: item.id,
     data: { timeUnit: item.time_unit, do: item },
   })
 
+  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
+    id: item.id,
+    data: { type: "do-item" },
+  })
+
+  // Combine drag + drop refs
+  const setNodeRef = (el: HTMLElement | null) => {
+    setDragRef(el)
+    setDropRef(el)
+  }
+
   const [isEditing, setIsEditing] = useState(false)
   const [draftTitle, setDraftTitle] = useState("")
   const [isMoving, setIsMoving] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [showAncestryPanel, setShowAncestryPanel] = useState(false)
+  const [showAddChild, setShowAddChild] = useState(false)
+
+  const pickerAnchorRef = useRef<HTMLDivElement>(null)
 
   const startEditing = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -55,15 +90,46 @@ export function DoItem({ item }: Props) {
   }
 
   const isMaintenance = item.do_type === "maintenance"
+  const hasChildren = allDos.some((d) => d.parent_id === item.id)
 
   return (
     <div
       ref={setNodeRef}
+      data-do-id={item.id}
+      onMouseEnter={() => onHover(item.id)}
+      onMouseLeave={() => onHover(null)}
+      style={{
+        opacity: isDimmed ? 0.08 : 1,
+        position: isAncestor || isHovered ? "relative" : undefined,
+        zIndex: isAncestor || isHovered ? 50 : undefined,
+        transition: "opacity 0.15s",
+      }}
       className={cn(
-        "group rounded-xl transition-all overflow-hidden",
+        "group rounded-xl transition-all overflow-visible",
         isDragging ? "opacity-30" : "bg-white/70 shadow-sm hover:bg-white/90 hover:shadow-md",
+        isDropOver && !isDragging && "ring-2 ring-blue-400 ring-offset-1",
       )}
     >
+      {/* Parent / child indicators — top-right badges */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 pointer-events-none">
+        {item.parent_id && (
+          <span
+            title="Has parent"
+            className="text-[9px] leading-none text-[#a9bab3]/70 font-medium select-none"
+          >
+            ↑
+          </span>
+        )}
+        {hasChildren && (
+          <span
+            title="Has children"
+            className="text-[9px] leading-none text-[#a9bab3]/70 font-medium select-none"
+          >
+            ↓
+          </span>
+        )}
+      </div>
+
       {/* Main row */}
       <div
         onClick={
@@ -167,7 +233,51 @@ export function DoItem({ item }: Props) {
           )
         )}
 
-        {/* Move picker toggle — always visible on mobile, hover-revealed on desktop */}
+        {/* Chain / ancestry icon — desktop: opens picker; mobile: opens ancestry panel */}
+        <div ref={pickerAnchorRef} className="relative">
+          {/* Desktop chain picker button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowPicker((v) => !v)
+            }}
+            className={cn(
+              "mt-1.5 flex-none transition-opacity hidden md:block",
+              showPicker ? "text-[#202945] opacity-100" : "text-[#a9bab3] hover:text-[#202945] opacity-0 group-hover:opacity-100",
+            )}
+            aria-label="Link parent…"
+            title="Link parent…"
+          >
+            <ChainIcon />
+          </button>
+
+          {/* Mobile ancestry panel trigger */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowAncestryPanel(true)
+            }}
+            className={cn(
+              "mt-1.5 flex-none transition-opacity md:hidden",
+              showAncestryPanel ? "text-[#202945] opacity-100" : "text-[#a9bab3] hover:text-[#202945]",
+            )}
+            aria-label="View ancestry"
+            title="View ancestry"
+          >
+            <ChainIcon />
+          </button>
+
+          {/* Parent picker popover (desktop) */}
+          {showPicker && (
+            <ParentPicker
+              item={item}
+              allDos={allDos}
+              onClose={() => setShowPicker(false)}
+            />
+          )}
+        </div>
+
+        {/* Move picker toggle */}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -219,9 +329,116 @@ export function DoItem({ item }: Props) {
           ))}
         </div>
       )}
+
+      {/* Add child button (desktop hover) + inline form */}
+      <div className="hidden md:block">
+        {!showAddChild && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowAddChild(true)
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity w-full flex items-center gap-1.5 px-4 pb-3 text-xs text-[#a9bab3] hover:text-[#202945] transition-colors"
+            aria-label="Add child Do"
+          >
+            <span className="text-sm">⤵</span>
+            Add child
+          </button>
+        )}
+        {showAddChild && (
+          <AddChildForm
+            parentItem={item}
+            onClose={() => setShowAddChild(false)}
+            onCreate={(title, unit) => {
+              createDo.mutate({ title, time_unit: unit, parent_id: item.id })
+              setShowAddChild(false)
+            }}
+          />
+        )}
+      </div>
+
+      {/* Mobile ancestry panel */}
+      {showAncestryPanel && (
+        <AncestryPanel
+          item={item}
+          allDos={allDos}
+          onClose={() => setShowAncestryPanel(false)}
+        />
+      )}
     </div>
   )
 }
+
+// ── AddChildForm ─────────────────────────────────────────────────────────────
+
+function AddChildForm({
+  parentItem,
+  onClose,
+  onCreate,
+}: {
+  parentItem: Do
+  onClose: () => void
+  onCreate: (title: string, unit: TimeUnit) => void
+}) {
+  const defaultUnit = CHILD_UNIT[parentItem.time_unit]
+  const [title, setTitle] = useState("")
+  const [unit, setUnit] = useState<TimeUnit>(defaultUnit)
+
+  const submit = () => {
+    const trimmed = title.trim()
+    if (!trimmed) return
+    onCreate(trimmed, unit)
+  }
+
+  return (
+    <div className="px-4 pb-3 space-y-2">
+      <div className="flex gap-1.5 flex-wrap">
+        {TIME_UNITS.map((u) => (
+          <button
+            key={u}
+            onClick={() => setUnit(u)}
+            className={cn(
+              "px-2.5 py-1 text-xs rounded-full transition-colors",
+              unit === u
+                ? "bg-[#202945] text-white"
+                : "bg-[#202945]/10 text-[#202945]/70 hover:bg-[#202945]/20",
+            )}
+          >
+            {TIME_UNIT_LABELS[u]}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); submit() }
+            if (e.key === "Escape") { e.preventDefault(); onClose() }
+          }}
+          placeholder="Child Do title…"
+          className="flex-1 text-sm bg-transparent outline-none border-b border-[#202945]/30 focus:border-[#202945] text-[#202945] pb-0.5 placeholder-[#a9bab3]"
+        />
+        <button
+          onClick={submit}
+          disabled={!title.trim()}
+          className="text-xs px-2.5 py-1 rounded-full bg-[#202945] text-white disabled:opacity-40 transition-opacity"
+        >
+          Add
+        </button>
+        <button
+          onClick={onClose}
+          className="text-xs px-2 py-1 text-[#a9bab3] hover:text-[#202945] transition-colors"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Icons ────────────────────────────────────────────────────────────────────
 
 function GripIcon() {
   return (
@@ -241,6 +458,27 @@ function MoveIcon() {
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
       <path
         d="M3 8h10M9 5l3 3-3 3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ChainIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M6.5 9.5a3.5 3.5 0 0 0 5 0l2-2a3.536 3.536 0 0 0-5-5L7 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.5 6.5a3.5 3.5 0 0 0-5 0l-2 2a3.536 3.536 0 0 0 5 5L9 12"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"

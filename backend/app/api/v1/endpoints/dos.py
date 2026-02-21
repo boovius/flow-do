@@ -28,14 +28,15 @@ async def create_do(
     payload: DoCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    result = supabase.table("dos").insert(
-        {
-            "user_id": _user_id(current_user),
-            "title": payload.title,
-            "time_unit": payload.time_unit.value,
-            "do_type": payload.do_type.value,
-        }
-    ).execute()
+    insert_data: dict = {
+        "user_id": _user_id(current_user),
+        "title": payload.title,
+        "time_unit": payload.time_unit.value,
+        "do_type": payload.do_type.value,
+    }
+    if payload.parent_id is not None:
+        insert_data["parent_id"] = str(payload.parent_id)
+    result = supabase.table("dos").insert(insert_data).execute()
     return result.data[0]
 
 
@@ -56,11 +57,24 @@ async def update_do(
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Do not found")
 
-    updates = payload.model_dump(exclude_none=True)
+    updates = payload.model_dump(exclude_unset=True)
     if "completed_at" in updates and updates["completed_at"] is not None:
         updates["completed_at"] = updates["completed_at"].isoformat()
     if "time_unit" in updates:
         updates["time_unit"] = updates["time_unit"].value
+    if "parent_id" in updates:
+        if updates["parent_id"] is not None:
+            parent_check = (
+                supabase.table("dos")
+                .select("id")
+                .eq("id", str(updates["parent_id"]))
+                .eq("user_id", _user_id(current_user))
+                .execute()
+            )
+            if not parent_check.data:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
+            updates["parent_id"] = str(updates["parent_id"])
+        # None is left as None to unset the parent_id
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
     return result.data[0]
