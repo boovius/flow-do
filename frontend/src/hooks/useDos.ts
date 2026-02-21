@@ -134,6 +134,32 @@ export function useMoveDo() {
   })
 }
 
+export function useRenameDo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string; timeUnit: TimeUnit }) => {
+      const { data } = await api.patch<Do>(`/api/v1/dos/${id}`, { title })
+      return data
+    },
+    onMutate: async ({ id, timeUnit, title }) => {
+      await queryClient.cancelQueries({ queryKey: ["dos", timeUnit] })
+      const previous = queryClient.getQueryData<Do[]>(["dos", timeUnit])
+      queryClient.setQueryData<Do[]>(["dos", timeUnit], (old) =>
+        old?.map((d) => (d.id === id ? { ...d, title } : d)) ?? [],
+      )
+      return { previous, timeUnit }
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(["dos", context.timeUnit], context.previous)
+      }
+    },
+    onSettled: (_data, _err, { timeUnit }) => {
+      void queryClient.invalidateQueries({ queryKey: ["dos", timeUnit] })
+    },
+  })
+}
+
 export function useDeleteDo() {
   const queryClient = useQueryClient()
   return useMutation({
