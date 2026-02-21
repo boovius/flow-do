@@ -34,3 +34,12 @@ export function getSeasonLabel(): string {
   if (month >= 8 && month <= 10) return `Fall ${year}`
   return `Winter ${month === 11 ? year + 1 : year}`
 }
+
+export function getYearLabel(): string {
+  return String(new Date().getFullYear())
+}
+
+export function getMultiYearLabel(): string {
+  const y = new Date().getFullYear()
+  return `${y + 1}–${y + 4}`
+}

@@ -1,13 +1,20 @@
 import { useState } from "react"
 import { useAuth } from "@/hooks/useAuth"
-import { FlowBoard } from "@/components/FlowBoard"
+import { FlowBoard, VISION_UNITS } from "@/components/FlowBoard"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { AppSection } from "@/types"
+import type { TimeUnit } from "@/types"
+
+function getInitialFocused(): TimeUnit | null {
+  if (typeof window !== "undefined" && window.innerWidth < 768) return "today"
+  return null
+}
 
 export function DashboardPage() {
   const { user, signOut } = useAuth()
-  const [section, setSection] = useState<AppSection>("present")
+  const [focused, setFocused] = useState<TimeUnit | null>(getInitialFocused)
+
+  const isVision = focused !== null && VISION_UNITS.has(focused)
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -18,20 +25,28 @@ export function DashboardPage() {
 
           {/* Section toggle */}
           <nav className="flex items-center gap-1">
-            {(["present", "vision"] as AppSection[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => setSection(s)}
-                className={cn(
-                  "px-3 py-1 rounded-md text-sm transition-colors duration-150 capitalize",
-                  section === s
-                    ? "bg-muted text-foreground font-medium"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {s}
-              </button>
-            ))}
+            <button
+              onClick={() => setFocused(null)}
+              className={cn(
+                "px-3 py-1 rounded-md text-sm transition-colors duration-150 capitalize",
+                !isVision
+                  ? "bg-muted text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Present
+            </button>
+            <button
+              onClick={() => setFocused("year")}
+              className={cn(
+                "px-3 py-1 rounded-md text-sm transition-colors duration-150 capitalize",
+                isVision
+                  ? "bg-muted text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Vision
+            </button>
           </nav>
         </div>
 
@@ -43,17 +58,8 @@ export function DashboardPage() {
         </div>
       </header>
 
-      {/* Section content */}
       <main className="flex-1 overflow-hidden">
-        {section === "present" ? (
-          <FlowBoard />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-muted-foreground/50">
-              Vision — coming soon
-            </p>
-          </div>
-        )}
+        <FlowBoard focused={focused} onFocusChange={setFocused} />
       </main>
     </div>
   )

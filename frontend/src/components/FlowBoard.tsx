@@ -10,24 +10,27 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core"
 import { TimeUnitColumn } from "@/components/TimeUnitColumn"
-import { getTodayLabel, getWeekRange, getMonthLabel, getSeasonLabel } from "@/lib/time"
+import { getTodayLabel, getWeekRange, getMonthLabel, getSeasonLabel, getYearLabel, getMultiYearLabel } from "@/lib/time"
 import { useMoveDo } from "@/hooks/useDos"
 import type { Do, TimeUnit } from "@/types"
 
-const COLUMNS: { unit: TimeUnit; label: string; getDateRange: () => string }[] = [
+const COLUMNS: { unit: TimeUnit; label: string; stripLabel?: string; getDateRange: () => string }[] = [
   { unit: "today", label: "Today", getDateRange: getTodayLabel },
   { unit: "week", label: "Week", getDateRange: getWeekRange },
   { unit: "month", label: "Month", getDateRange: getMonthLabel },
   { unit: "season", label: "Season", getDateRange: getSeasonLabel },
+  { unit: "year", label: "Year", stripLabel: "Year", getDateRange: getYearLabel },
+  { unit: "multi_year", label: "3–5 Year", stripLabel: "3–5 Yr", getDateRange: getMultiYearLabel },
 ]
 
-function getInitialFocused(): TimeUnit | null {
-  if (typeof window !== "undefined" && window.innerWidth < 768) return "today"
-  return null
+export const VISION_UNITS = new Set<TimeUnit>(["year", "multi_year"])
+
+interface Props {
+  focused: TimeUnit | null
+  onFocusChange: (unit: TimeUnit | null) => void
 }
 
-export function FlowBoard() {
-  const [focused, setFocused] = useState<TimeUnit | null>(getInitialFocused)
+export function FlowBoard({ focused, onFocusChange }: Props) {
   const [activeDo, setActiveDo] = useState<Do | null>(null)
   const moveDo = useMoveDo()
 
@@ -38,7 +41,7 @@ export function FlowBoard() {
   )
 
   const handleFocus = (unit: TimeUnit) => {
-    setFocused((prev) => (prev === unit ? null : unit))
+    onFocusChange(focused === unit ? null : unit)
   }
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -67,9 +70,16 @@ export function FlowBoard() {
             key={col.unit}
             unit={col.unit}
             label={col.label}
+            stripLabel={col.stripLabel}
             dateRange={col.getDateRange()}
-            isFocused={focused === col.unit}
-            isCollapsed={focused !== null && focused !== col.unit}
+            isFocused={focused !== null && !VISION_UNITS.has(focused) && focused === col.unit}
+            isCollapsed={
+              focused !== null
+                ? VISION_UNITS.has(focused)
+                  ? !VISION_UNITS.has(col.unit)
+                  : focused !== col.unit
+                : VISION_UNITS.has(col.unit)
+            }
             onFocus={() => handleFocus(col.unit)}
           />
         ))}

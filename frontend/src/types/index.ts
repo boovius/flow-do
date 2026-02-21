@@ -1,4 +1,4 @@
-export type TimeUnit = "today" | "week" | "month" | "season"
+export type TimeUnit = "today" | "week" | "month" | "season" | "year" | "multi_year"
 
 export type AppSection = "present" | "vision"
 

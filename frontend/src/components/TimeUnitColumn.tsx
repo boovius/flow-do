@@ -34,11 +34,24 @@ const COLUMN_STYLE: Record<
     z: 4,
     shadow: "-8px 0 20px rgba(32,41,69,0.11)",
   },
+  year: {
+    body: "#e6e9f0",
+    header: "#cdd3e2",
+    z: 5,
+    shadow: "-8px 0 20px rgba(32,41,69,0.13)",
+  },
+  multi_year: {
+    body: "#e0e4ef",
+    header: "#c4cce0",
+    z: 6,
+    shadow: "-8px 0 20px rgba(32,41,69,0.15)",
+  },
 }
 
 interface Props {
   unit: TimeUnit
   label: string
+  stripLabel?: string
   dateRange: string
   isFocused: boolean
   isCollapsed: boolean
@@ -48,6 +61,7 @@ interface Props {
 export function TimeUnitColumn({
   unit,
   label,
+  stripLabel,
   dateRange,
   isFocused,
   isCollapsed,
@@ -96,7 +110,7 @@ export function TimeUnitColumn({
               "transition-colors duration-200",
             )}
           >
-            {label}
+            {stripLabel ?? label}
           </span>
         ) : (
           <>
@@ -118,7 +132,7 @@ export function TimeUnitColumn({
         <div
           ref={setDropRef}
           className={cn(
-            "flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 transition-colors duration-150",
+            "flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 transition-colors duration-150",
             isOver && "bg-[#202945]/[0.04]",
           )}
         >
