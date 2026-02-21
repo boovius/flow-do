@@ -12,6 +12,7 @@ import {
 import { TimeUnitColumn } from "@/components/TimeUnitColumn"
 import { getTodayLabel, getWeekRange, getMonthLabel, getSeasonLabel, getYearLabel, getMultiYearLabel } from "@/lib/time"
 import { useMoveDo } from "@/hooks/useDos"
+import { cn } from "@/lib/utils"
 import type { Do, TimeUnit } from "@/types"
 
 const COLUMNS: { unit: TimeUnit; label: string; stripLabel?: string; getDateRange: () => string }[] = [
@@ -62,9 +63,36 @@ export function FlowBoard({ focused, onFocusChange }: Props) {
     moveDo.mutate({ id: active.id as string, fromUnit, toUnit })
   }
 
+  // On mobile, always show a column — fall back to "today" if focused is null
+  const mobileUnit: TimeUnit = (focused ?? "today")
+  const mobileCol = COLUMNS.find((c) => c.unit === mobileUnit) ?? COLUMNS[0]
+
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex h-full overflow-visible">
+
+      {/* ── Mobile layout ── */}
+      <div className="flex flex-col h-full md:hidden">
+        <MobileTabBar
+          columns={COLUMNS}
+          active={mobileUnit}
+          onSelect={onFocusChange}
+        />
+        <div className="flex-1 overflow-hidden">
+          <TimeUnitColumn
+            key={mobileCol.unit}
+            unit={mobileCol.unit}
+            label={mobileCol.label}
+            stripLabel={mobileCol.stripLabel}
+            dateRange={mobileCol.getDateRange()}
+            isFocused={true}
+            isCollapsed={false}
+            onFocus={() => {}}
+          />
+        </div>
+      </div>
+
+      {/* ── Desktop layout ── */}
+      <div className="hidden md:flex h-full overflow-visible">
         {COLUMNS.map((col) => (
           <TimeUnitColumn
             key={col.unit}
@@ -90,6 +118,35 @@ export function FlowBoard({ focused, onFocusChange }: Props) {
         {activeDo ? <DragChip title={activeDo.title} /> : null}
       </DragOverlay>
     </DndContext>
+  )
+}
+
+function MobileTabBar({
+  columns,
+  active,
+  onSelect,
+}: {
+  columns: typeof COLUMNS
+  active: TimeUnit
+  onSelect: (unit: TimeUnit) => void
+}) {
+  return (
+    <div className="flex overflow-x-auto shrink-0 border-b border-black/10 bg-white scrollbar-none">
+      {columns.map((col) => (
+        <button
+          key={col.unit}
+          onClick={() => onSelect(col.unit)}
+          className={cn(
+            "flex-none px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px",
+            active === col.unit
+              ? "border-[#202945] text-[#202945]"
+              : "border-transparent text-[#a9bab3] hover:text-[#7b8ea6]",
+          )}
+        >
+          {col.label}
+        </button>
+      ))}
+    </div>
   )
 }
 

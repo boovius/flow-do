@@ -23,8 +23,8 @@ export function DashboardPage() {
         <div className="flex items-center gap-6">
           <span className="text-base font-semibold tracking-tight">Flow-Do</span>
 
-          {/* Section toggle */}
-          <nav className="flex items-center gap-1">
+          {/* Section toggle — desktop only; mobile uses the tab bar in FlowBoard */}
+          <nav className="hidden md:flex items-center gap-1">
             <button
               onClick={() => setFocused(null)}
               className={cn(
