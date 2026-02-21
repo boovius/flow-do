@@ -15,14 +15,20 @@ def run_flow_up() -> dict:
     """
     Implements flow-up entirely in Python — no stored procedure.
 
-    Logic (evaluated at current UTC time):
+    Normal dos logic (evaluated at current UTC time):
       - Every day        : today   → week
       - Every Monday     : week    → month
       - Every 1st of month: month  → season
       - Mar/Jun/Sep/Dec 1: season  → year
 
-    For items that flow: time_unit advances, flow_count += 1, days_in_unit resets to 0.
-    For items that stay: days_in_unit += 1 (staleness counter).
+    For normal items that flow: time_unit advances, flow_count += 1, days_in_unit resets to 0.
+    For normal items that stay: days_in_unit += 1 (staleness counter).
+
+    Maintenance dos logic:
+      - Never flow to a new time_unit
+      - completion_count resets to 0 at period boundaries (same timing as normal flow-up,
+        plus year resets on Jan 1, multi_year resets on Jan 1 of every 3rd year)
+      - days_in_unit += 1 otherwise
 
     All changes are applied in a single batch upsert.
     Returns a summary dict of how many items moved per transition.
@@ -31,12 +37,14 @@ def run_flow_up() -> dict:
     is_monday = now_utc.isoweekday() == 1
     is_first_of_month = now_utc.day == 1
     is_season_start = _is_season_start(now_utc)
+    is_new_year = now_utc.day == 1 and now_utc.month == 1
+    is_cycle_year = is_new_year and now_utc.year % 3 == 0
     now_iso = now_utc.isoformat()
 
     try:
         result = (
             supabase.table("dos")
-            .select("id,time_unit,days_in_unit,flow_count")
+            .select("id,time_unit,do_type,days_in_unit,flow_count,completion_count")
             .eq("completed", False)
             .execute()
         )
@@ -50,33 +58,60 @@ def run_flow_up() -> dict:
 
     for item in items:
         unit = item["time_unit"]
-        new_unit: str | None = None
+        do_type = item.get("do_type", "normal")
 
-        if unit == "today":
-            new_unit = "week"
-        elif unit == "week" and is_monday:
-            new_unit = "month"
-        elif unit == "month" and is_first_of_month:
-            new_unit = "season"
-        elif unit == "season" and is_season_start:
-            new_unit = "year"
-
-        if new_unit:
-            key = f"{unit}_to_{new_unit}"
-            summary[key] = summary.get(key, 0) + 1
-            updates.append({
-                "id": item["id"],
-                "time_unit": new_unit,
-                "flow_count": item["flow_count"] + 1,
-                "days_in_unit": 0,
-                "updated_at": now_iso,
-            })
+        if do_type == "maintenance":
+            # Determine if this period boundary should reset the count
+            should_reset = (
+                unit == "today"
+                or (unit == "week" and is_monday)
+                or (unit == "month" and is_first_of_month)
+                or (unit == "season" and is_season_start)
+                or (unit == "year" and is_new_year)
+                or (unit == "multi_year" and is_cycle_year)
+            )
+            if should_reset:
+                updates.append({
+                    "id": item["id"],
+                    "completion_count": 0,
+                    "days_in_unit": 0,
+                    "updated_at": now_iso,
+                })
+            else:
+                updates.append({
+                    "id": item["id"],
+                    "days_in_unit": item["days_in_unit"] + 1,
+                    "updated_at": now_iso,
+                })
         else:
-            updates.append({
-                "id": item["id"],
-                "days_in_unit": item["days_in_unit"] + 1,
-                "updated_at": now_iso,
-            })
+            # Normal do — existing flow-up logic
+            new_unit: str | None = None
+
+            if unit == "today":
+                new_unit = "week"
+            elif unit == "week" and is_monday:
+                new_unit = "month"
+            elif unit == "month" and is_first_of_month:
+                new_unit = "season"
+            elif unit == "season" and is_season_start:
+                new_unit = "year"
+
+            if new_unit:
+                key = f"{unit}_to_{new_unit}"
+                summary[key] = summary.get(key, 0) + 1
+                updates.append({
+                    "id": item["id"],
+                    "time_unit": new_unit,
+                    "flow_count": item["flow_count"] + 1,
+                    "days_in_unit": 0,
+                    "updated_at": now_iso,
+                })
+            else:
+                updates.append({
+                    "id": item["id"],
+                    "days_in_unit": item["days_in_unit"] + 1,
+                    "updated_at": now_iso,
+                })
 
     if updates:
         try:

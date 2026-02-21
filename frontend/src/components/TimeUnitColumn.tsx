@@ -147,8 +147,8 @@ export function TimeUnitColumn({
           {/* Add Do input pinned to bottom of list */}
           <div className="mt-2">
             <AddDoInput
-              onAdd={(title) =>
-                createDo.mutate({ title, time_unit: unit })
+              onAdd={(title, doType) =>
+                createDo.mutate({ title, time_unit: unit, do_type: doType })
               }
               disabled={createDo.isPending}
             />

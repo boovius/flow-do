@@ -13,9 +13,15 @@ class TimeUnit(str, Enum):
     multi_year = "multi_year"
 
 
+class DoType(str, Enum):
+    normal = "normal"
+    maintenance = "maintenance"
+
+
 class DoCreate(BaseModel):
     title: str
     time_unit: TimeUnit
+    do_type: DoType = DoType.normal
 
 
 class DoUpdate(BaseModel):
@@ -30,9 +36,11 @@ class Do(BaseModel):
     user_id: uuid.UUID
     title: str
     time_unit: TimeUnit
+    do_type: DoType
     completed: bool
     completed_at: datetime | None
     days_in_unit: int
     flow_count: int
+    completion_count: int
     created_at: datetime
     updated_at: datetime

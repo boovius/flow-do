@@ -1,3 +1,16 @@
+import type { TimeUnit } from "@/types"
+
+export function getPeriodLabel(unit: TimeUnit): string {
+  switch (unit) {
+    case "today":      return "today"
+    case "week":       return "this week"
+    case "month":      return "this month"
+    case "season":     return "this season"
+    case "year":       return "this year"
+    case "multi_year": return "this cycle"
+  }
+}
+
 export function getTodayLabel(): string {
   return new Date().toLocaleDateString("en-US", {
     weekday: "short",

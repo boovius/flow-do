@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
-from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit
+from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
 
 router = APIRouter()
 
@@ -33,6 +33,7 @@ async def create_do(
             "user_id": _user_id(current_user),
             "title": payload.title,
             "time_unit": payload.time_unit.value,
+            "do_type": payload.do_type.value,
         }
     ).execute()
     return result.data[0]
@@ -62,6 +63,32 @@ async def update_do(
         updates["time_unit"] = updates["time_unit"].value
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
+    return result.data[0]
+
+
+@router.post("/{do_id}/log", response_model=Do)
+async def log_maintenance_do(
+    do_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    existing = (
+        supabase.table("dos")
+        .select("id,do_type,completion_count")
+        .eq("id", do_id)
+        .eq("user_id", _user_id(current_user))
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Do not found")
+    if existing.data[0]["do_type"] != DoType.maintenance.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only maintenance dos can be logged")
+
+    result = (
+        supabase.table("dos")
+        .update({"completion_count": existing.data[0]["completion_count"] + 1})
+        .eq("id", do_id)
+        .execute()
+    )
     return result.data[0]
 
 
