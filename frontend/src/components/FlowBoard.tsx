@@ -12,7 +12,7 @@ import {
 import { TimeUnitColumn } from "@/components/TimeUnitColumn"
 import { getTodayLabel, getWeekRange, getMonthLabel, getSeasonLabel, getYearLabel, getMultiYearLabel } from "@/lib/time"
 import { useMoveDo, useSetParent, useAllDos } from "@/hooks/useDos"
-import { getAncestorIds } from "@/lib/ancestry"
+import { getAncestorChain, getAncestorIds } from "@/lib/ancestry"
 import { cn } from "@/lib/utils"
 import type { Do, TimeUnit } from "@/types"
 
@@ -47,72 +47,155 @@ export function useAncestry() {
   return useContext(AncestryContext)
 }
 
-// ── SVG overlay ──────────────────────────────────────────────────────────────
+// ── SVG overlay + off-screen ghost panel ─────────────────────────────────────
+
+const GHOST_UNIT_COLORS: Record<TimeUnit, string> = {
+  today: "#7b8ea6",
+  week: "#6b82a6",
+  month: "#5f7a9e",
+  season: "#556f94",
+  year: "#4a6386",
+  multi_year: "#3e5577",
+}
+
+const GHOST_UNIT_LABELS: Record<TimeUnit, string> = {
+  today: "Today",
+  week: "Week",
+  month: "Month",
+  season: "Season",
+  year: "Year",
+  multi_year: "3–5 Yr",
+}
+
+type Line = { x1: number; y1: number; x2: number; y2: number; channelX: number }
+type GhostState = { centerX: number; topY: number; ancestors: Do[] } | null
 
 function AncestryOverlay({
   hoveredDoId,
   ancestorIds,
+  allDos,
   boardRef,
 }: {
   hoveredDoId: string | null
   ancestorIds: Set<string>
+  allDos: Do[]
   boardRef: React.RefObject<HTMLDivElement | null>
 }) {
-  const [lines, setLines] = useState<Array<{ x1: number; y1: number; x2: number; y2: number }>>([])
+  const [lines, setLines] = useState<Line[]>([])
+  const [ghost, setGhost] = useState<GhostState>(null)
 
   useEffect(() => {
-    if (!hoveredDoId || !boardRef.current) {
+    if (!hoveredDoId || !boardRef.current || ancestorIds.size === 0) {
       setLines([])
+      setGhost(null)
       return
     }
     const board = boardRef.current
     const boardRect = board.getBoundingClientRect()
 
-    const getCenter = (id: string) => {
-      const el = board.querySelector(`[data-do-id="${id}"]`)
-      if (!el) return null
-      const r = el.getBoundingClientRect()
-      return {
-        x: r.left + r.width / 2 - boardRect.left,
-        y: r.top + r.height / 2 - boardRect.top,
+    const hoveredEl = board.querySelector(`[data-do-id="${hoveredDoId}"]`)
+    if (!hoveredEl) { setLines([]); setGhost(null); return }
+
+    const hoveredRect = hoveredEl.getBoundingClientRect()
+    const hoveredCenter = {
+      x: hoveredRect.left + hoveredRect.width / 2 - boardRect.left,
+      y: hoveredRect.top + hoveredRect.height / 2 - boardRect.top,
+    }
+    const hoveredColEl = hoveredEl.closest("[data-time-column]")
+
+    const newLines: Line[] = []
+    const offScreen: Do[] = []
+
+    for (const ancestor of getAncestorChain(allDos, hoveredDoId)) {
+      const el = board.querySelector(`[data-do-id="${ancestor.id}"]`)
+      if (el) {
+        const r = el.getBoundingClientRect()
+        const ancestorCenter = {
+          x: r.left + r.width / 2 - boardRect.left,
+          y: r.top + r.height / 2 - boardRect.top,
+        }
+        // Find the inter-column channel x position
+        const ancestorColEl = el.closest("[data-time-column]")
+        let channelX = (hoveredCenter.x + ancestorCenter.x) / 2
+        if (hoveredColEl && ancestorColEl && hoveredColEl !== ancestorColEl) {
+          const hcr = hoveredColEl.getBoundingClientRect()
+          const acr = ancestorColEl.getBoundingClientRect()
+          if (hcr.right <= acr.left) {
+            channelX = (hcr.right + acr.left) / 2 - boardRect.left
+          } else {
+            channelX = (acr.right + hcr.left) / 2 - boardRect.left
+          }
+        }
+        newLines.push({ x1: hoveredCenter.x, y1: hoveredCenter.y, x2: ancestorCenter.x, y2: ancestorCenter.y, channelX })
+      } else {
+        offScreen.push(ancestor)
       }
     }
 
-    const childCenter = getCenter(hoveredDoId)
-    if (!childCenter) { setLines([]); return }
-
-    const newLines = Array.from(ancestorIds)
-      .map((ancestorId) => {
-        const ancestorCenter = getCenter(ancestorId)
-        if (!ancestorCenter) return null
-        return { x1: childCenter.x, y1: childCenter.y, x2: ancestorCenter.x, y2: ancestorCenter.y }
-      })
-      .filter(Boolean) as Array<{ x1: number; y1: number; x2: number; y2: number }>
-
     setLines(newLines)
-  }, [hoveredDoId, ancestorIds, boardRef])
+    setGhost(
+      offScreen.length > 0
+        ? { centerX: hoveredCenter.x, topY: hoveredRect.top - boardRect.top, ancestors: offScreen }
+        : null,
+    )
+  }, [hoveredDoId, ancestorIds, allDos, boardRef])
 
-  if (!hoveredDoId || lines.length === 0) return null
+  if (!hoveredDoId) return null
 
   return (
-    <svg
-      className="absolute inset-0 pointer-events-none overflow-visible"
-      style={{ zIndex: 40, width: "100%", height: "100%" }}
-    >
-      {lines.map((line, i) => (
-        <line
-          key={i}
-          x1={line.x1}
-          y1={line.y1}
-          x2={line.x2}
-          y2={line.y2}
-          stroke="#a9bab3"
-          strokeWidth="1.5"
-          strokeDasharray="5 4"
-          opacity="0.7"
-        />
-      ))}
-    </svg>
+    <>
+      {lines.length > 0 && (
+        <svg
+          className="absolute inset-0 pointer-events-none overflow-visible"
+          style={{ zIndex: 40, width: "100%", height: "100%" }}
+        >
+          {lines.map((line, i) => (
+            <path
+              key={i}
+              d={`M ${line.x1} ${line.y1} H ${line.channelX} V ${line.y2} H ${line.x2}`}
+              fill="none"
+              stroke="#a9bab3"
+              strokeWidth="1.5"
+              strokeDasharray="5 4"
+              opacity="0.7"
+            />
+          ))}
+        </svg>
+      )}
+
+      {ghost && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: ghost.centerX,
+            top: ghost.topY - 8,
+            transform: "translateX(-50%) translateY(-100%)",
+            zIndex: 50,
+          }}
+        >
+          <div className="flex flex-col items-center gap-1">
+            {ghost.ancestors.map((ancestor) => (
+              <div
+                key={ancestor.id}
+                className="rounded-lg border border-dashed border-[#a9bab3]/50 bg-white/80 backdrop-blur-sm px-3 py-2 w-52"
+              >
+                <span
+                  className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-white"
+                  style={{ backgroundColor: GHOST_UNIT_COLORS[ancestor.time_unit] }}
+                >
+                  {GHOST_UNIT_LABELS[ancestor.time_unit]}
+                </span>
+                <p className="mt-1 text-sm text-[#202945]/70 leading-snug line-clamp-2">
+                  {ancestor.title}
+                </p>
+              </div>
+            ))}
+            {/* Dashed connector to card below */}
+            <div className="w-px h-2 border-l border-dashed border-[#a9bab3]/50" />
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -132,6 +215,15 @@ export function FlowBoard({ focused, onFocusChange }: Props) {
   const boardRef = useRef<HTMLDivElement>(null)
 
   const ancestorIds = hoveredDoId ? getAncestorIds(allDos, hoveredDoId) : new Set<string>()
+
+  // Dismiss ancestry overlay on Escape
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHoveredDoId(null)
+    }
+    document.addEventListener("keydown", handle)
+    return () => document.removeEventListener("keydown", handle)
+  }, [])
 
   // Require a 5px move before a drag starts — prevents accidental drags on taps
   const sensors = useSensors(
@@ -207,19 +299,9 @@ export function FlowBoard({ focused, onFocusChange }: Props) {
         </div>
 
         {/* ── Desktop layout ── */}
-        <div ref={boardRef} className="hidden md:flex h-full overflow-visible relative">
-          {/* Spotlight dim overlay */}
-          <div
-            className="absolute inset-0 pointer-events-none transition-opacity duration-150"
-            style={{
-              backgroundColor: "rgba(0,0,0,0.5)",
-              opacity: hoveredDoId !== null ? 1 : 0,
-              zIndex: 40,
-            }}
-          />
-
-          {/* SVG connecting lines */}
-          <AncestryOverlay hoveredDoId={hoveredDoId} ancestorIds={ancestorIds} boardRef={boardRef} />
+        <div ref={boardRef} className="hidden md:flex h-full overflow-visible relative" onClick={() => setHoveredDoId(null)}>
+          {/* SVG lines + off-screen ghost panel */}
+          <AncestryOverlay hoveredDoId={hoveredDoId} ancestorIds={ancestorIds} allDos={allDos} boardRef={boardRef} />
 
           {COLUMNS.map((col) => (
             <TimeUnitColumn

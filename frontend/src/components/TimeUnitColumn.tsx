@@ -74,6 +74,7 @@ export function TimeUnitColumn({
 
   return (
     <div
+      data-time-column={unit}
       className={cn(
         "relative flex flex-col",
         "transition-all duration-500 ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden",

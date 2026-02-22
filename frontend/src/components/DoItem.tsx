@@ -43,7 +43,7 @@ export function DoItem({ item }: Props) {
   const { hoveredDoId, ancestorIds, onHover, allDos } = useContext(AncestryContext)
   const isHovered = hoveredDoId === item.id
   const isAncestor = ancestorIds.has(item.id)
-  const isDimmed = hoveredDoId !== null && !isHovered && !isAncestor
+  const isDimmed = hoveredDoId !== null && ancestorIds.size > 0 && !isHovered && !isAncestor
 
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: item.id,
@@ -96,6 +96,7 @@ export function DoItem({ item }: Props) {
     <div
       ref={setNodeRef}
       data-do-id={item.id}
+      onClick={(e) => e.stopPropagation()}
       onMouseEnter={() => onHover(item.id)}
       onMouseLeave={() => onHover(null)}
       style={{
@@ -110,20 +111,48 @@ export function DoItem({ item }: Props) {
         isDropOver && !isDragging && "ring-2 ring-blue-400 ring-offset-1",
       )}
     >
-      {/* Parent / child indicators — top-right badges */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 pointer-events-none">
-        {item.parent_id && (
-          <span
-            title="Has parent"
-            className="text-[9px] leading-none text-[#a9bab3]/70 font-medium select-none"
-          >
-            ↑
-          </span>
-        )}
+      {/* Lineage controls — top-right, always present */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5">
+        {/* Desktop: click toggles ancestry overlay; if no parent opens picker instead */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            if (item.parent_id) {
+              onHover(hoveredDoId === item.id ? null : item.id)
+            } else {
+              setShowPicker((v) => !v)
+            }
+          }}
+          title={item.parent_id ? "View ancestry" : "Link parent…"}
+          className={cn(
+            "hidden md:flex leading-none font-semibold transition-colors px-0.5",
+            isHovered
+              ? "text-[#202945]"
+              : item.parent_id
+              ? "text-[#a9bab3] hover:text-[#7b8ea6]"
+              : "text-[#a9bab3]/30 hover:text-[#a9bab3]",
+          )}
+        >
+          🌱
+        </button>
+        {/* Mobile: tap always opens ancestry panel */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowAncestryPanel(true)
+          }}
+          title="View ancestry"
+          className={cn(
+            "md:hidden flex leading-none px-0.5 active:text-[#202945]",
+            item.parent_id ? "text-[#a9bab3]" : "text-[#a9bab3]/30",
+          )}
+        >
+          🌱
+        </button>
         {hasChildren && (
           <span
             title="Has children"
-            className="text-[9px] leading-none text-[#a9bab3]/70 font-medium select-none"
+            className="leading-none text-[#a9bab3]/60 font-medium select-none px-0.5"
           >
             ↓
           </span>
@@ -233,16 +262,15 @@ export function DoItem({ item }: Props) {
           )
         )}
 
-        {/* Chain / ancestry icon — desktop: opens picker; mobile: opens ancestry panel */}
-        <div ref={pickerAnchorRef} className="relative">
-          {/* Desktop chain picker button */}
+        {/* Chain icon — desktop only, opens parent picker for linking */}
+        <div ref={pickerAnchorRef} className="relative hidden md:block">
           <button
             onClick={(e) => {
               e.stopPropagation()
               setShowPicker((v) => !v)
             }}
             className={cn(
-              "mt-1.5 flex-none transition-opacity hidden md:block",
+              "mt-1.5 flex-none transition-opacity",
               showPicker ? "text-[#202945] opacity-100" : "text-[#a9bab3] hover:text-[#202945] opacity-0 group-hover:opacity-100",
             )}
             aria-label="Link parent…"
@@ -251,23 +279,7 @@ export function DoItem({ item }: Props) {
             <ChainIcon />
           </button>
 
-          {/* Mobile ancestry panel trigger */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowAncestryPanel(true)
-            }}
-            className={cn(
-              "mt-1.5 flex-none transition-opacity md:hidden",
-              showAncestryPanel ? "text-[#202945] opacity-100" : "text-[#a9bab3] hover:text-[#202945]",
-            )}
-            aria-label="View ancestry"
-            title="View ancestry"
-          >
-            <ChainIcon />
-          </button>
-
-          {/* Parent picker popover (desktop) */}
+          {/* Parent picker popover */}
           {showPicker && (
             <ParentPicker
               item={item}
@@ -276,6 +288,7 @@ export function DoItem({ item }: Props) {
             />
           )}
         </div>
+
 
         {/* Move picker toggle */}
         <button
@@ -457,9 +470,9 @@ function MoveIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
       <path
-        d="M3 8h10M9 5l3 3-3 3"
+        d="M8 2v12M2 8h12M8 2L5.5 4.5M8 2L10.5 4.5M8 14L5.5 11.5M8 14L10.5 11.5M2 8L4.5 5.5M2 8L4.5 10.5M14 8L11.5 5.5M14 8L11.5 10.5"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="1.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
