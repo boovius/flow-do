@@ -101,12 +101,11 @@ export function DoItem({ item }: Props) {
       onMouseLeave={() => onHover(null)}
       style={{
         opacity: isDimmed ? 0.08 : 1,
-        position: isAncestor || isHovered ? "relative" : undefined,
         zIndex: isAncestor || isHovered ? 50 : undefined,
         transition: "opacity 0.15s",
       }}
       className={cn(
-        "group rounded-xl transition-all overflow-visible",
+        "group relative rounded-xl transition-all overflow-visible",
         isDragging ? "opacity-30" : "bg-white/70 shadow-sm hover:bg-white/90 hover:shadow-md",
         isDropOver && !isDragging && "ring-2 ring-blue-400 ring-offset-1",
       )}
@@ -133,7 +132,7 @@ export function DoItem({ item }: Props) {
               : "text-[#a9bab3]/30 hover:text-[#a9bab3]",
           )}
         >
-          🌱
+          🌳
         </button>
         {/* Mobile: tap always opens ancestry panel */}
         <button
@@ -147,7 +146,7 @@ export function DoItem({ item }: Props) {
             item.parent_id ? "text-[#a9bab3]" : "text-[#a9bab3]/30",
           )}
         >
-          🌱
+          🌳
         </button>
         {hasChildren && (
           <span
