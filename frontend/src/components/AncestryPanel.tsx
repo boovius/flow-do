@@ -40,7 +40,7 @@ export function AncestryPanel({ item, allDos, onClose }: Props) {
 
   const handleUnlink = (ancestorId: string) => {
     // Find the child whose parent is this ancestor
-    const child = allDos.find((d) => d.id === item.id && d.parent_id === ancestorId)
+    allDos.find((d) => d.id === item.id && d.parent_id === ancestorId)
       ?? allDos.find((d) => {
         // Walk chain to find the Do that directly points to ancestorId
         let cur: Do | undefined = item
