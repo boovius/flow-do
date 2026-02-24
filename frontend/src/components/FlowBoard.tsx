@@ -67,7 +67,8 @@ const GHOST_UNIT_LABELS: Record<TimeUnit, string> = {
   multi_year: "3–5 Yr",
 }
 
-type Line = { x1: number; y1: number; x2: number; y2: number; channelX: number }
+// startX/Y = exit point on child card edge; endX/Y = entry point on parent card edge; seamX = column boundary
+type Line = { startX: number; startY: number; endX: number; endY: number; seamX: number }
 type GhostState = { centerX: number; topY: number; ancestors: Do[] } | null
 
 function AncestryOverlay({
@@ -97,10 +98,7 @@ function AncestryOverlay({
     if (!hoveredEl) { setLines([]); setGhost(null); return }
 
     const hoveredRect = hoveredEl.getBoundingClientRect()
-    const hoveredCenter = {
-      x: hoveredRect.left + hoveredRect.width / 2 - boardRect.left,
-      y: hoveredRect.top + hoveredRect.height / 2 - boardRect.top,
-    }
+    const hoveredCenterY = hoveredRect.top + hoveredRect.height / 2 - boardRect.top
     const hoveredColEl = hoveredEl.closest("[data-time-column]")
 
     const newLines: Line[] = []
@@ -110,23 +108,36 @@ function AncestryOverlay({
       const el = board.querySelector(`[data-do-id="${ancestor.id}"]`)
       if (el) {
         const r = el.getBoundingClientRect()
-        const ancestorCenter = {
-          x: r.left + r.width / 2 - boardRect.left,
-          y: r.top + r.height / 2 - boardRect.top,
-        }
-        // Find the inter-column channel x position
+        const ancestorCenterY = r.top + r.height / 2 - boardRect.top
         const ancestorColEl = el.closest("[data-time-column]")
-        let channelX = (hoveredCenter.x + ancestorCenter.x) / 2
+
+        let startX: number, endX: number, seamX: number
+
         if (hoveredColEl && ancestorColEl && hoveredColEl !== ancestorColEl) {
           const hcr = hoveredColEl.getBoundingClientRect()
           const acr = ancestorColEl.getBoundingClientRect()
           if (hcr.right <= acr.left) {
-            channelX = (hcr.right + acr.left) / 2 - boardRect.left
+            // Parent is to the right: exit child's right edge, vertical at that seam, enter parent's left edge
+            startX = hoveredRect.right - boardRect.left
+            seamX  = hcr.right - boardRect.left
+            endX   = r.left - boardRect.left
           } else {
-            channelX = (acr.right + hcr.left) / 2 - boardRect.left
+            // Parent is to the left: exit child's left edge, vertical at that seam, enter parent's right edge
+            startX = hoveredRect.left - boardRect.left
+            seamX  = acr.right - boardRect.left
+            endX   = r.right - boardRect.left
           }
+        } else {
+          // Same column: run a short loop outside the right edge of both cards
+          const colRight = hoveredColEl
+            ? hoveredColEl.getBoundingClientRect().right - boardRect.left
+            : Math.max(hoveredRect.right, r.right) - boardRect.left + 8
+          startX = hoveredRect.right - boardRect.left
+          seamX  = colRight + 8
+          endX   = r.right - boardRect.left
         }
-        newLines.push({ x1: hoveredCenter.x, y1: hoveredCenter.y, x2: ancestorCenter.x, y2: ancestorCenter.y, channelX })
+
+        newLines.push({ startX, startY: hoveredCenterY, endX, endY: ancestorCenterY, seamX })
       } else {
         offScreen.push(ancestor)
       }
@@ -135,7 +146,7 @@ function AncestryOverlay({
     setLines(newLines)
     setGhost(
       offScreen.length > 0
-        ? { centerX: hoveredCenter.x, topY: hoveredRect.top - boardRect.top, ancestors: offScreen }
+        ? { centerX: hoveredRect.left + hoveredRect.width / 2 - boardRect.left, topY: hoveredRect.top - boardRect.top, ancestors: offScreen }
         : null,
     )
   }, [hoveredDoId, ancestorIds, allDos, boardRef])
@@ -152,12 +163,11 @@ function AncestryOverlay({
           {lines.map((line, i) => (
             <path
               key={i}
-              d={`M ${line.x1} ${line.y1} H ${line.channelX} V ${line.y2} H ${line.x2}`}
+              d={`M ${line.startX} ${line.startY} H ${line.seamX} V ${line.endY} H ${line.endX}`}
               fill="none"
               stroke="#a9bab3"
               strokeWidth="1.5"
-              strokeDasharray="5 4"
-              opacity="0.7"
+              opacity="0.8"
             />
           ))}
         </svg>
