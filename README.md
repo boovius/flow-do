@@ -184,7 +184,7 @@ When it makes sense to optimise, the remote verification call can be replaced wi
 
 ### How time flow works
 
-There are no per-item expiration timestamps. Flow is **structural**: the rule is purely based on what time unit an item is in and what day it is today. Every uncompleted `today` item flows to `week` every night — no exceptions. This keeps the data model simple and the logic easy to reason about.
+There are no per-item expiration timestamps. Flow is **structural**: the rule is purely based on what time unit an item is in and what day it is today. Every `today` item — completed or not — flows to `week` every night, no exceptions. This keeps the data model simple and the logic easy to reason about. Completed items continue to flow so that a task's history remains in the correct time-unit context rather than being stranded where it was finished.
 
 | Item's current unit | Condition           | Flows to   |
 | ------------------- | ------------------- | ---------- |
@@ -193,16 +193,30 @@ There are no per-item expiration timestamps. Flow is **structural**: the rule is
 | `month`           | 1st of each month   | `season` |
 | `season`          | Mar/Jun/Sep/Dec 1st | `year`   |
 
-Items that flow get `flow_count + 1` and `days_in_unit` reset to 0. Items that stay accumulate `days_in_unit` as a staleness counter (used for future UI indicators).
+These rules apply to **both** normal and maintenance dos. Items that flow get `flow_count + 1` and `days_in_unit` reset to 0. Items that stay accumulate `days_in_unit` as a staleness counter (used for future UI indicators).
+
+### Maintenance dos and `completion_count`
+
+Maintenance dos track how many times a recurring task has been done within its current time window using `completion_count` (stored on the `dos` row).
+
+**When a maintenance do flows** to a higher time unit, `completion_count` resets to `0`. The new, larger window starts fresh — e.g. a weekly exercise do that flowed to month starts counting from zero for the month.
+
+**When a maintenance do stays** in its unit, `completion_count` is left unchanged by flow-up — only user taps increment it.
+
+**`year` and `multi_year` are special**: they have no higher destination to flow to, so they never leave their unit. Instead, `completion_count` resets in-place at period boundaries:
+- `year`: resets on January 1st every year
+- `multi_year`: resets on January 1st of years divisible by 3 (3-year cycle boundary)
 
 ### Implementation
 
 All logic lives in **`backend/app/services/flow_up.py`** — no stored procedures. The function:
 
-1. Fetches all uncompleted dos in one query
+1. Fetches all dos in one query (completed and uncompleted alike)
 2. Evaluates today's UTC date to determine which transitions are active
 3. Computes each item's new state in Python
 4. Applies all changes in a single batch upsert
+
+> **Critical: keep all upsert dicts homogeneous.** PostgREST normalizes a batch of objects to the union of all keys present, filling `null` for any key missing from a given row. For the `ON CONFLICT (id) DO UPDATE` that follows, every column in the union becomes part of the `SET` clause — including `flow_count = null` or `completion_count = null` for rows where that key was omitted. This explicit `null` overrides the column's `DEFAULT 0` and hits the `NOT NULL` constraint. **Every dict in `updates` must include `flow_count` and `completion_count`**, even when the values are unchanged — pass `item["flow_count"]` / `item["completion_count"]` through as-is for those cases.
 
 ### Scheduler
 

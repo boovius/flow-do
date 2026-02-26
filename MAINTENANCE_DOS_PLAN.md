@@ -1,6 +1,18 @@
 # Plan: Maintenance Dos
 
-## Context
+> **Implementation note:** The approach below (immutable `maintenance_logs` table, computed counts) was the original plan but was **not built**. The actual implementation uses a simpler model:
+>
+> - `completion_count` is a mutable integer stored directly on the `dos` row (added in `20260221000000_add_maintenance_dos.sql`)
+> - Maintenance dos **flow up** using the same time rules as normal dos (`today → week`, `week → month`, etc.)
+> - When a maintenance do flows, `completion_count` resets to `0` — fresh tracking for the new time window
+> - `year` and `multi_year` dos have no flow destination, so they reset `completion_count` in-place on period boundaries (Jan 1 for `year`; Jan 1 of years divisible by 3 for `multi_year`)
+> - There is no `maintenance_logs` table; the `/log` endpoint was not added; `GET /dos` does not compute period counts
+>
+> See `backend/app/services/flow_up.py` (`_compute_maintenance_update`) and `backend/tests/test_flow_up.py` for the authoritative implementation.
+
+---
+
+## Original Plan (not implemented — kept for historical reference)
 
 Users need a second type of "do" for recurring tasks that are never truly "finished" — things like exercise, watering plants, or a weekly review. Rather than checking them off, users log each occurrence. A separate `maintenance_logs` table stores every tap as an immutable timestamped row. The current-period count is **computed at query time** from those logs, never stored as a mutable integer.
 
@@ -142,19 +154,7 @@ async def log_maintenance_do(do_id, current_user):
 
 ### 5. `backend/app/services/flow_up.py`
 
-**One-line change**: add `.eq("do_type", "normal")` to the fetch query.
-
-Maintenance dos are entirely excluded from flow-up. No reset branch, no extra logic. `days_in_unit` for maintenance dos will no longer increment via flow-up, which is acceptable — that field is less meaningful for anchored items.
-
-```python
-result = (
-    supabase.table("dos")
-    .select("id,time_unit,days_in_unit,flow_count")
-    .eq("completed", False)
-    .eq("do_type", "normal")   # ← only change
-    .execute()
-)
-```
+> **Not implemented as planned.** Maintenance dos are NOT excluded from flow-up. See the implementation note at the top of this file for the actual behavior.
 
 ---
 
