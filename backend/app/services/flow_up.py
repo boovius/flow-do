@@ -44,7 +44,7 @@ def run_flow_up() -> dict:
     try:
         result = (
             supabase.table("dos")
-            .select("id,time_unit,do_type,days_in_unit,flow_count,completion_count")
+            .select("id,user_id,title,time_unit,do_type,days_in_unit,flow_count,completion_count")
             .eq("completed", False)
             .execute()
         )
@@ -73,6 +73,9 @@ def run_flow_up() -> dict:
             if should_reset:
                 updates.append({
                     "id": item["id"],
+                    "user_id": item["user_id"],
+                    "title": item["title"],
+                    "time_unit": unit,
                     "completion_count": 0,
                     "days_in_unit": 0,
                     "updated_at": now_iso,
@@ -80,6 +83,9 @@ def run_flow_up() -> dict:
             else:
                 updates.append({
                     "id": item["id"],
+                    "user_id": item["user_id"],
+                    "title": item["title"],
+                    "time_unit": unit,
                     "days_in_unit": item["days_in_unit"] + 1,
                     "updated_at": now_iso,
                 })
@@ -101,6 +107,8 @@ def run_flow_up() -> dict:
                 summary[key] = summary.get(key, 0) + 1
                 updates.append({
                     "id": item["id"],
+                    "user_id": item["user_id"],
+                    "title": item["title"],
                     "time_unit": new_unit,
                     "flow_count": item["flow_count"] + 1,
                     "days_in_unit": 0,
@@ -109,6 +117,9 @@ def run_flow_up() -> dict:
             else:
                 updates.append({
                     "id": item["id"],
+                    "user_id": item["user_id"],
+                    "title": item["title"],
+                    "time_unit": unit,
                     "days_in_unit": item["days_in_unit"] + 1,
                     "updated_at": now_iso,
                 })
