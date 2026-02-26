@@ -1,9 +1,10 @@
+import { useMemo, useState } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
 import { useDos, useCreateDo } from "@/hooks/useDos"
 import { DoItem } from "@/components/DoItem"
 import { AddDoInput } from "@/components/AddDoInput"
-import type { TimeUnit } from "@/types"
+import type { Do, SortOption, TimeUnit } from "@/types"
 
 // Per-column palette: body bg, header bg, z-index, shadow
 const COLUMN_STYLE: Record<
@@ -48,6 +49,13 @@ const COLUMN_STYLE: Record<
   },
 }
 
+const SORT_OPTIONS: { value: string; label: string; key: SortOption["key"]; dir: SortOption["dir"] }[] = [
+  { value: "created_at|asc",  label: "Date created ↑", key: "created_at", dir: "asc"  },
+  { value: "created_at|desc", label: "Date created ↓", key: "created_at", dir: "desc" },
+  { value: "name|asc",        label: "Name A–Z",        key: "name",       dir: "asc"  },
+  { value: "name|desc",       label: "Name Z–A",        key: "name",       dir: "desc" },
+]
+
 interface Props {
   unit: TimeUnit
   label: string
@@ -56,6 +64,20 @@ interface Props {
   isFocused: boolean
   isCollapsed: boolean
   onFocus: () => void
+}
+
+function sortDos(dos: Do[], sort: SortOption): Do[] {
+  const cmp = (a: Do, b: Do) => {
+    if (sort.key === "name") {
+      const r = a.title.localeCompare(b.title)
+      return sort.dir === "asc" ? r : -r
+    }
+    const r = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    return sort.dir === "asc" ? r : -r
+  }
+  const incomplete = dos.filter((d) => !d.completed).sort(cmp)
+  const complete = dos.filter((d) => d.completed).sort(cmp)
+  return [...incomplete, ...complete]
 }
 
 export function TimeUnitColumn({
@@ -71,6 +93,8 @@ export function TimeUnitColumn({
   const { data: dos = [], isLoading } = useDos(unit)
   const createDo = useCreateDo()
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: unit })
+  const [sort, setSort] = useState<SortOption>({ key: "created_at", dir: "asc" })
+  const sortedDos = useMemo(() => sortDos(dos, sort), [dos, sort])
 
   return (
     <div
@@ -87,22 +111,13 @@ export function TimeUnitColumn({
       }}
     >
       {/* Header */}
-      <button
-        onClick={onFocus}
-        className={cn(
-          "group w-full text-left transition-colors duration-200",
-          isCollapsed
-            ? "flex h-full flex-col items-center justify-start pt-5 px-0"
-            : "flex flex-col gap-0.5 px-5 py-4",
-        )}
-        style={
-          isCollapsed
-            ? { backgroundColor: style.header }
-            : { backgroundColor: style.header }
-        }
-        aria-label={isCollapsed ? `Expand ${label}` : `Focus ${label}`}
-      >
-        {isCollapsed ? (
+      {isCollapsed ? (
+        <button
+          onClick={onFocus}
+          className="group flex h-full w-full flex-col items-center justify-start pt-5 px-0 text-left transition-colors duration-200"
+          style={{ backgroundColor: style.header }}
+          aria-label={`Expand ${label}`}
+        >
           <span
             className={cn(
               "[writing-mode:vertical-rl] rotate-180",
@@ -113,8 +128,18 @@ export function TimeUnitColumn({
           >
             {stripLabel ?? label}
           </span>
-        ) : (
-          <>
+        </button>
+      ) : (
+        <div
+          className="flex items-center gap-2 px-5 py-4"
+          style={{ backgroundColor: style.header }}
+        >
+          {/* Clicking the text area focuses/unfocuses the column */}
+          <button
+            onClick={onFocus}
+            className="group flex flex-1 flex-col gap-0.5 text-left transition-colors duration-200"
+            aria-label={`Focus ${label}`}
+          >
             <span
               className={cn(
                 "font-semibold tracking-tight text-[#202945] transition-all duration-500",
@@ -124,9 +149,22 @@ export function TimeUnitColumn({
               {label}
             </span>
             <span className="text-xs text-[#7b8ea6]">{dateRange}</span>
-          </>
-        )}
-      </button>
+          </button>
+          {/* Per-column sort — sibling to button, not inside it */}
+          <select
+            value={`${sort.key}|${sort.dir}`}
+            onChange={(e) => {
+              const opt = SORT_OPTIONS.find((o) => o.value === e.target.value)
+              if (opt) setSort({ key: opt.key, dir: opt.dir })
+            }}
+            className="text-xs text-[#202945]/40 bg-transparent cursor-pointer focus:outline-none hover:text-[#202945]/70 transition-colors duration-150 shrink-0"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Body — also the drop target */}
       {!isCollapsed && (
@@ -139,10 +177,10 @@ export function TimeUnitColumn({
         >
           {isLoading ? (
             <LoadingSkeleton />
-          ) : dos.length === 0 ? (
+          ) : sortedDos.length === 0 ? (
             <EmptyState isFocused={isFocused} />
           ) : (
-            dos.map((item) => <DoItem key={item.id} item={item} />)
+            sortedDos.map((item) => <DoItem key={item.id} item={item} />)
           )}
 
           {/* Add Do input pinned to bottom of list */}

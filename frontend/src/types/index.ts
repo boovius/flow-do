@@ -4,6 +4,11 @@ export type DoType = "normal" | "maintenance"
 
 export type AppSection = "present" | "vision"
 
+export interface SortOption {
+  key: "created_at" | "name"
+  dir: "asc" | "desc"
+}
+
 export interface Do {
   id: string
   user_id: string
