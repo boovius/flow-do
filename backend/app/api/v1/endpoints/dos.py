@@ -1,7 +1,11 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
 from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
+from app.services.maintenance import get_count, inject_counts
 
 router = APIRouter()
 
@@ -20,7 +24,9 @@ async def list_dos(
         query = query.eq("time_unit", time_unit.value)
     query = query.order("created_at", desc=False)
     result = query.execute()
-    return result.data
+    dos_data = result.data or []
+    inject_counts(dos_data, datetime.now(timezone.utc))
+    return dos_data
 
 
 @router.post("", response_model=Do, status_code=status.HTTP_201_CREATED)
@@ -77,7 +83,10 @@ async def update_do(
         # None is left as None to unset the parent_id
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
-    return result.data[0]
+    do = result.data[0]
+    if do["do_type"] == DoType.maintenance.value:
+        do["completion_count"] = get_count(do["id"], do["time_unit"], datetime.now(timezone.utc))
+    return do
 
 
 @router.post("/{do_id}/log", response_model=Do)
@@ -87,7 +96,7 @@ async def log_maintenance_do(
 ):
     existing = (
         supabase.table("dos")
-        .select("id,do_type,completion_count")
+        .select("id,do_type")
         .eq("id", do_id)
         .eq("user_id", _user_id(current_user))
         .execute()
@@ -97,13 +106,14 @@ async def log_maintenance_do(
     if existing.data[0]["do_type"] != DoType.maintenance.value:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only maintenance dos can be logged")
 
-    result = (
-        supabase.table("dos")
-        .update({"completion_count": existing.data[0]["completion_count"] + 1})
-        .eq("id", do_id)
-        .execute()
-    )
-    return result.data[0]
+    supabase.table("maintenance_logs").insert({
+        "do_id": do_id,
+        "user_id": _user_id(current_user),
+    }).execute()
+
+    do = supabase.table("dos").select("*").eq("id", do_id).execute().data[0]
+    do["completion_count"] = get_count(do_id, do["time_unit"], datetime.now(timezone.utc))
+    return do
 
 
 @router.delete("/{do_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -16,13 +16,8 @@ def _compute_maintenance_update(item: dict, now_utc: datetime, now_iso: str) -> 
     Compute the upsert payload for a maintenance do.
 
     Maintenance dos flow to higher time units using the same rules as normal dos.
-    When a maintenance do flows, completion_count resets to 0 — tracking starts
-    fresh for the new, larger time window.
-
-    For maintenance dos that stay in their current unit:
-      - year      : completion_count resets on Jan 1 (new year, same unit)
-      - multi_year: completion_count resets on Jan 1 of years divisible by 3
-      - all others: days_in_unit increments, completion_count unchanged
+    completion_count is never reset here — it is computed from maintenance_logs
+    at query time.
 
     Returns (update_dict, transition_key) mirroring _compute_normal_update.
     """
@@ -45,26 +40,19 @@ def _compute_maintenance_update(item: dict, now_utc: datetime, now_iso: str) -> 
             "title": item["title"],
             "time_unit": new_unit,
             "flow_count": item["flow_count"] + 1,
-            "completion_count": 0,
+            "completion_count": item["completion_count"],
             "days_in_unit": 0,
             "updated_at": now_iso,
         }, f"{unit}_to_{new_unit}"
 
-    # Task stays — only year/multi_year have period-boundary resets since
-    # every other unit would have flowed rather than staying at its boundary.
-    is_new_year = now_utc.day == 1 and now_utc.month == 1
-    period_reset = (
-        (unit == "year" and is_new_year)
-        or (unit == "multi_year" and is_new_year and now_utc.year % 3 == 0)
-    )
     return {
         "id": item["id"],
         "user_id": item["user_id"],
         "title": item["title"],
         "time_unit": unit,
         "flow_count": item["flow_count"],
-        "completion_count": 0 if period_reset else item["completion_count"],
-        "days_in_unit": 0 if period_reset else item["days_in_unit"] + 1,
+        "completion_count": item["completion_count"],
+        "days_in_unit": item["days_in_unit"] + 1,
         "updated_at": now_iso,
     }, None
 

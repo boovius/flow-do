@@ -212,23 +212,23 @@ def test_maintenance_update_returns_tuple():
 
 
 def test_maintenance_today_flows_to_week():
-    """today maintenance dos flow to week every day, resetting completion_count."""
+    """today maintenance dos flow to week every day, preserving completion_count."""
     item = make_item(time_unit="today", do_type="maintenance", completion_count=2, flow_count=0)
     update, transition = _compute_maintenance_update(item, PLAIN_DAY, NOW_ISO)
     assert update["time_unit"] == "week"
     assert update["flow_count"] == 1
-    assert update["completion_count"] == 0
+    assert update["completion_count"] == 2
     assert update["days_in_unit"] == 0
     assert transition == "today_to_week"
 
 
 def test_maintenance_week_flows_to_month_on_monday():
-    """week maintenance dos flow to month on Mondays, resetting completion_count."""
+    """week maintenance dos flow to month on Mondays, preserving completion_count."""
     item = make_item(time_unit="week", do_type="maintenance", completion_count=4, flow_count=1)
     update, transition = _compute_maintenance_update(item, A_MONDAY, NOW_ISO)
     assert update["time_unit"] == "month"
     assert update["flow_count"] == 2
-    assert update["completion_count"] == 0
+    assert update["completion_count"] == 4
     assert update["days_in_unit"] == 0
     assert transition == "week_to_month"
 
@@ -247,7 +247,7 @@ def test_maintenance_month_flows_to_season_on_first():
     item = make_item(time_unit="month", do_type="maintenance", completion_count=10)
     update, transition = _compute_maintenance_update(item, A_FIRST_NON_SEASON, NOW_ISO)
     assert update["time_unit"] == "season"
-    assert update["completion_count"] == 0
+    assert update["completion_count"] == 10
     assert transition == "month_to_season"
 
 
@@ -255,40 +255,8 @@ def test_maintenance_season_flows_to_year_on_season_start():
     item = make_item(time_unit="season", do_type="maintenance", completion_count=8)
     update, transition = _compute_maintenance_update(item, SEASON_START, NOW_ISO)
     assert update["time_unit"] == "year"
-    assert update["completion_count"] == 0
+    assert update["completion_count"] == 8
     assert transition == "season_to_year"
-
-
-# ---------------------------------------------------------------------------
-# _compute_maintenance_update — period resets for year/multi_year (no flow destination)
-# ---------------------------------------------------------------------------
-
-
-def test_maintenance_year_resets_on_new_year():
-    """year has no flow destination, so a new year resets completion_count in place."""
-    item = make_item(time_unit="year", do_type="maintenance", completion_count=12, days_in_unit=364)
-    update, transition = _compute_maintenance_update(item, NEW_YEAR_NON_CYCLE, NOW_ISO)
-    assert update["time_unit"] == "year"
-    assert update["completion_count"] == 0
-    assert update["days_in_unit"] == 0
-    assert transition is None
-
-
-def test_maintenance_multi_year_resets_on_cycle_new_year():
-    item = make_item(time_unit="multi_year", do_type="maintenance", completion_count=6, days_in_unit=1000)
-    update, transition = _compute_maintenance_update(item, NEW_YEAR_CYCLE, NOW_ISO)
-    assert update["time_unit"] == "multi_year"
-    assert update["completion_count"] == 0
-    assert update["days_in_unit"] == 0
-    assert transition is None
-
-
-def test_maintenance_multi_year_does_not_reset_on_non_cycle_new_year():
-    item = make_item(time_unit="multi_year", do_type="maintenance", completion_count=6, days_in_unit=100)
-    update, transition = _compute_maintenance_update(item, NEW_YEAR_NON_CYCLE, NOW_ISO)
-    assert update["completion_count"] == 6
-    assert update["days_in_unit"] == 101
-    assert transition is None
 
 
 def test_maintenance_flow_count_unchanged_when_staying():
