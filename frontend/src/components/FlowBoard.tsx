@@ -214,9 +214,10 @@ function AncestryOverlay({
 interface Props {
   focused: TimeUnit | null
   onFocusChange: (unit: TimeUnit | null) => void
+  hideMaintenance: boolean
 }
 
-export function FlowBoard({ focused, onFocusChange }: Props) {
+export function FlowBoard({ focused, onFocusChange, hideMaintenance }: Props) {
   const [activeDo, setActiveDo] = useState<Do | null>(null)
   const [hoveredDoId, setHoveredDoId] = useState<string | null>(null)
   const moveDo = useMoveDo()
@@ -304,6 +305,7 @@ export function FlowBoard({ focused, onFocusChange }: Props) {
               isFocused={true}
               isCollapsed={false}
               onFocus={() => {}}
+              hideMaintenance={hideMaintenance}
             />
           </div>
         </div>
@@ -329,6 +331,7 @@ export function FlowBoard({ focused, onFocusChange }: Props) {
                   : VISION_UNITS.has(col.unit)
               }
               onFocus={() => handleFocus(col.unit)}
+              hideMaintenance={hideMaintenance}
             />
           ))}
         </div>

@@ -13,6 +13,7 @@ function getInitialFocused(): TimeUnit | null {
 export function DashboardPage() {
   const { user, signOut } = useAuth()
   const [focused, setFocused] = useState<TimeUnit | null>(getInitialFocused)
+  const [hideMaintenance, setHideMaintenance] = useState(false)
 
   const isVision = focused !== null && VISION_UNITS.has(focused)
 
@@ -47,6 +48,17 @@ export function DashboardPage() {
             >
               Vision
             </button>
+            <button
+              onClick={() => setHideMaintenance((v) => !v)}
+              className={cn(
+                "px-3 py-1 rounded-md text-sm transition-colors duration-150",
+                hideMaintenance
+                  ? "bg-muted text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Atomic
+            </button>
           </nav>
         </div>
 
@@ -59,7 +71,7 @@ export function DashboardPage() {
       </header>
 
       <main className="flex-1 overflow-hidden">
-        <FlowBoard focused={focused} onFocusChange={setFocused} />
+        <FlowBoard focused={focused} onFocusChange={setFocused} hideMaintenance={hideMaintenance} />
       </main>
     </div>
   )
