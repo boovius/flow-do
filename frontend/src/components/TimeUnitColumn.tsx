@@ -65,6 +65,7 @@ interface Props {
   isCollapsed: boolean
   onFocus: () => void
   doFilter: "all" | "atomic" | "maintenance"
+  hideDone: boolean
 }
 
 function sortDos(dos: Do[], sort: SortOption): Do[] {
@@ -90,6 +91,7 @@ export function TimeUnitColumn({
   isCollapsed,
   onFocus,
   doFilter,
+  hideDone,
 }: Props) {
   const style = COLUMN_STYLE[unit]
   const { data: dos = [], isLoading } = useDos(unit)
@@ -97,12 +99,13 @@ export function TimeUnitColumn({
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: unit })
   const [sort, setSort] = useState<SortOption>({ key: "created_at", dir: "asc" })
   const sortedDos = useMemo(() => {
-    const filtered =
+    let filtered =
       doFilter === "atomic" ? dos.filter((d) => d.do_type !== "maintenance") :
       doFilter === "maintenance" ? dos.filter((d) => d.do_type === "maintenance") :
       dos
+    if (hideDone) filtered = filtered.filter((d) => !d.completed)
     return sortDos(filtered, sort)
-  }, [dos, sort, doFilter])
+  }, [dos, sort, doFilter, hideDone])
 
   return (
     <div

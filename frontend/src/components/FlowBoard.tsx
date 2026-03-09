@@ -217,9 +217,10 @@ interface Props {
   focused: TimeUnit | null
   onFocusChange: (unit: TimeUnit | null) => void
   doFilter: "all" | "atomic" | "maintenance"
+  hideDone: boolean
 }
 
-export function FlowBoard({ focused, onFocusChange, doFilter }: Props) {
+export function FlowBoard({ focused, onFocusChange, doFilter, hideDone }: Props) {
   const [activeDo, setActiveDo] = useState<Do | null>(null)
   const [hoveredDoId, setHoveredDoId] = useState<string | null>(null)
   const [movingDoId, setMovingDoId] = useState<string | null>(null)
@@ -312,6 +313,7 @@ export function FlowBoard({ focused, onFocusChange, doFilter }: Props) {
               isCollapsed={false}
               onFocus={() => {}}
               doFilter={doFilter}
+              hideDone={hideDone}
             />
           </div>
         </div>
@@ -338,6 +340,7 @@ export function FlowBoard({ focused, onFocusChange, doFilter }: Props) {
               }
               onFocus={() => handleFocus(col.unit)}
               doFilter={doFilter}
+              hideDone={hideDone}
             />
           ))}
         </div>
