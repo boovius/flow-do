@@ -34,6 +34,7 @@ export interface AncestryContextValue {
   ancestorIds: Set<string>
   onHover: (id: string | null) => void
   allDos: Do[]
+  movingDoId: string | null
 }
 
 export const AncestryContext = createContext<AncestryContextValue>({
@@ -41,6 +42,7 @@ export const AncestryContext = createContext<AncestryContextValue>({
   ancestorIds: new Set(),
   onHover: () => {},
   allDos: [],
+  movingDoId: null,
 })
 
 export function useAncestry() {
@@ -220,6 +222,7 @@ interface Props {
 export function FlowBoard({ focused, onFocusChange, hideMaintenance }: Props) {
   const [activeDo, setActiveDo] = useState<Do | null>(null)
   const [hoveredDoId, setHoveredDoId] = useState<string | null>(null)
+  const [movingDoId, setMovingDoId] = useState<string | null>(null)
   const moveDo = useMoveDo()
   const setParent = useSetParent()
   const { data: allDos = [] } = useAllDos()
@@ -270,7 +273,9 @@ export function FlowBoard({ focused, onFocusChange, hideMaintenance }: Props) {
     // Dropped onto a column → move
     const toUnit = over.id as TimeUnit
     if (fromUnit === toUnit) return
-    moveDo.mutate({ id: active.id as string, fromUnit, toUnit })
+    const movingId = active.id as string
+    setMovingDoId(movingId)
+    moveDo.mutate({ id: movingId, fromUnit, toUnit }, { onSettled: () => setMovingDoId(null) })
   }
 
   const ancestryCtx: AncestryContextValue = {
@@ -278,6 +283,7 @@ export function FlowBoard({ focused, onFocusChange, hideMaintenance }: Props) {
     ancestorIds,
     onHover: setHoveredDoId,
     allDos,
+    movingDoId,
   }
 
   // On mobile, always show a column — fall back to "today" if focused is null

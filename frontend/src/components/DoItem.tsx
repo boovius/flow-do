@@ -39,7 +39,7 @@ export function DoItem({ item }: Props) {
   const move = useMoveDo()
   const createDo = useCreateDo()
 
-  const { hoveredDoId, ancestorIds, onHover, allDos } = useContext(AncestryContext)
+  const { hoveredDoId, ancestorIds, onHover, allDos, movingDoId } = useContext(AncestryContext)
   const isHovered = hoveredDoId === item.id
   const isAncestor = ancestorIds.has(item.id)
   const isDimmed = hoveredDoId !== null && ancestorIds.size > 0 && !isHovered && !isAncestor
@@ -376,7 +376,14 @@ export function DoItem({ item }: Props) {
 
           {isMaintenance ? (
             <span className="text-xs text-[#7b8ea6]/60 flex-none">
-              {item.completion_count}× {getPeriodLabel(item.time_unit)}
+              {movingDoId === item.id ? (
+                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                  <path fill="currentColor" fillOpacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <>{item.completion_count}× {getPeriodLabel(item.time_unit)}</>
+              )}
             </span>
           ) : (
             item.flow_count > 0 && !item.completed && (
