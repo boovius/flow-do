@@ -13,7 +13,7 @@ function getInitialFocused(): TimeUnit | null {
 export function DashboardPage() {
   const { user, signOut } = useAuth()
   const [focused, setFocused] = useState<TimeUnit | null>(getInitialFocused)
-  const [hideMaintenance, setHideMaintenance] = useState(false)
+  const [doFilter, setDoFilter] = useState<"all" | "atomic" | "maintenance">("all")
 
   const isVision = focused !== null && VISION_UNITS.has(focused)
 
@@ -49,15 +49,26 @@ export function DashboardPage() {
               Vision
             </button>
             <button
-              onClick={() => setHideMaintenance((v) => !v)}
+              onClick={() => setDoFilter((v) => v === "atomic" ? "all" : "atomic")}
               className={cn(
                 "px-3 py-1 rounded-md text-sm transition-colors duration-150",
-                hideMaintenance
+                doFilter === "atomic"
                   ? "bg-muted text-foreground font-medium"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               Atomic
+            </button>
+            <button
+              onClick={() => setDoFilter((v) => v === "maintenance" ? "all" : "maintenance")}
+              className={cn(
+                "px-3 py-1 rounded-md text-sm transition-colors duration-150",
+                doFilter === "maintenance"
+                  ? "bg-muted text-foreground font-medium"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Maintenance
             </button>
           </nav>
         </div>
@@ -71,7 +82,7 @@ export function DashboardPage() {
       </header>
 
       <main className="flex-1 overflow-hidden">
-        <FlowBoard focused={focused} onFocusChange={setFocused} hideMaintenance={hideMaintenance} />
+        <FlowBoard focused={focused} onFocusChange={setFocused} doFilter={doFilter} />
       </main>
     </div>
   )
