@@ -84,8 +84,7 @@ export function DoItem({ item }: Props) {
     return () => document.removeEventListener("mousedown", handler)
   }, [showOptions])
 
-  const startEditing = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const startEditing = () => {
     setDraftTitle(item.title)
     setIsEditing(true)
   }
@@ -278,6 +277,20 @@ export function DoItem({ item }: Props) {
                   Add child
                 </button>
 
+                {/* Rename */}
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowOptions(false)
+                    startEditing()
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-[#202945] hover:bg-[#202945]/5 flex items-center gap-2"
+                >
+                  <PencilIcon />
+                  Rename
+                </button>
+
                 {/* Set priority — only for Today dos */}
                 {item.time_unit === "today" && (
                   <button
@@ -387,10 +400,8 @@ export function DoItem({ item }: Props) {
             />
           ) : (
             <span
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={startEditing}
               className={cn(
-                "flex-1 text-sm leading-snug cursor-text",
+                "flex-1 text-sm leading-snug",
                 item.completed ? "line-through text-[#a9bab3]" : "text-[#202945]",
               )}
             >
@@ -631,6 +642,20 @@ function AddChildIcon() {
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
       <path d="M3 3v6a2 2 0 0 0 2 2h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M10 8l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function PencilIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M11 2l3 3-9 9H2v-3l9-9z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
