@@ -47,3 +47,4 @@ class Do(BaseModel):
     created_at: datetime
     updated_at: datetime
     parent_id: uuid.UUID | None = None
+    is_today_priority: bool = False

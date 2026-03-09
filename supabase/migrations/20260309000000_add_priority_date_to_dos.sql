@@ -1,0 +1,1 @@
+ALTER TABLE dos ADD COLUMN priority_date DATE NULL;

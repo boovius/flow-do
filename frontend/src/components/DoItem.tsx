@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef, useState } from "react"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
-import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo } from "@/hooks/useDos"
+import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo, useTogglePriority } from "@/hooks/useDos"
+import { Star } from "lucide-react"
 import { getPeriodLabel } from "@/lib/time"
 import { AncestryContext } from "@/components/FlowBoard"
 import { ParentPicker } from "@/components/ParentPicker"
@@ -38,6 +39,7 @@ export function DoItem({ item }: Props) {
   const rename = useRenameDo()
   const move = useMoveDo()
   const createDo = useCreateDo()
+  const togglePriority = useTogglePriority()
 
   const { hoveredDoId, ancestorIds, onHover, allDos, movingDoId } = useContext(AncestryContext)
   const isHovered = hoveredDoId === item.id
@@ -148,6 +150,7 @@ export function DoItem({ item }: Props) {
           "flex-1 relative rounded-xl transition-all overflow-visible",
           isDragging ? "opacity-30" : "bg-white/70 shadow-sm hover:bg-white/90 hover:shadow-md",
           isDropOver && !isDragging && "ring-2 ring-blue-400 ring-offset-1",
+          item.is_today_priority && "!bg-amber-50/80 border border-amber-300/60",
         )}
       >
         {/* Top bar: lineage icon (left) + options icon (right) */}
@@ -275,6 +278,23 @@ export function DoItem({ item }: Props) {
                   Add child
                 </button>
 
+                {/* Set priority — only for Today dos */}
+                {item.time_unit === "today" && (
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      togglePriority.mutate({ id: item.id })
+                      setShowOptions(false)
+                    }}
+                    disabled={togglePriority.isPending}
+                    className="w-full text-left px-3 py-2 text-sm text-[#202945] hover:bg-[#202945]/5 flex items-center gap-2"
+                  >
+                    <Star className="h-4 w-4" />
+                    {item.is_today_priority ? "Remove priority" : "Set as priority"}
+                  </button>
+                )}
+
                 <div className="my-1 border-t border-black/[0.06]" />
 
                 {/* Delete */}
@@ -345,6 +365,10 @@ export function DoItem({ item }: Props) {
                 </svg>
               )}
             </button>
+          )}
+
+          {item.is_today_priority && (
+            <Star className="h-3.5 w-3.5 flex-none fill-amber-400 text-amber-400 shrink-0" />
           )}
 
           {isEditing ? (

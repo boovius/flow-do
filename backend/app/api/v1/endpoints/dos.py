@@ -26,6 +26,9 @@ async def list_dos(
     result = query.execute()
     dos_data = result.data or []
     inject_counts(dos_data, datetime.now(timezone.utc))
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    for d in dos_data:
+        d["is_today_priority"] = (d.get("priority_date") == today_str)
     return dos_data
 
 
@@ -68,6 +71,8 @@ async def update_do(
         updates["completed_at"] = updates["completed_at"].isoformat()
     if "time_unit" in updates:
         updates["time_unit"] = updates["time_unit"].value
+        if payload.time_unit != TimeUnit.today:
+            updates["priority_date"] = None
     if "parent_id" in updates:
         if updates["parent_id"] is not None:
             parent_check = (
@@ -86,6 +91,8 @@ async def update_do(
     do = result.data[0]
     if do["do_type"] == DoType.maintenance.value:
         do["completion_count"] = get_count(do["id"], do["time_unit"], datetime.now(timezone.utc))
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    do["is_today_priority"] = (do.get("priority_date") == today_str)
     return do
 
 
@@ -113,6 +120,39 @@ async def log_maintenance_do(
 
     do = supabase.table("dos").select("*").eq("id", do_id).execute().data[0]
     do["completion_count"] = get_count(do_id, do["time_unit"], datetime.now(timezone.utc))
+    return do
+
+
+@router.post("/{do_id}/toggle-priority", response_model=Do)
+async def toggle_priority(
+    do_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = _user_id(current_user)
+    existing = (
+        supabase.table("dos")
+        .select("*")
+        .eq("id", do_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Do not found")
+
+    do_row = existing.data[0]
+    today_str = datetime.now(timezone.utc).date().isoformat()
+
+    if do_row.get("priority_date") == today_str:
+        # Toggle off
+        result = supabase.table("dos").update({"priority_date": None}).eq("id", do_id).execute()
+    else:
+        # Clear any existing today-priority for this user, then set this one
+        supabase.table("dos").update({"priority_date": None}).eq("user_id", user_id).eq("priority_date", today_str).execute()
+        result = supabase.table("dos").update({"priority_date": today_str}).eq("id", do_id).execute()
+
+    do = result.data[0]
+    inject_counts([do], datetime.now(timezone.utc))
+    do["is_today_priority"] = (do.get("priority_date") == today_str)
     return do
 
 

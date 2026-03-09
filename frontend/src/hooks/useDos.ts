@@ -254,3 +254,16 @@ export function useDeleteDo() {
     },
   })
 }
+
+export function useTogglePriority() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { data } = await api.post<Do>(`/api/v1/dos/${id}/toggle-priority`, {})
+      return data
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dos", "today"] })
+    },
+  })
+}
