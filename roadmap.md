@@ -8,6 +8,8 @@ FLOW DO ROADMAP
 * items without parent/child relationship in today or week or month should show question mark where parent/child lineage icon is, indicating no parent/child relationship
 * move edit name of do into options
 * make more clear the indicator of how many times a Do has flowed-up
+* move maintenance dos back up to weekly (if in today) after doing them
+* show the parents of todays dos (summing them up) - option in today column to show/hide
 
 ### Filter/Search dos
 * when typing show only those Dos with names matching the users input
