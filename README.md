@@ -71,6 +71,8 @@ If you want to test Google Calendar OAuth locally, you will also need:
 
 See `docs/google-calendar-setup-checklist.md` for the human-in-the-loop setup steps.
 
+The Google OAuth values are populated from `backend/.env` locally (and from deployed environment variables in production).
+
 ### 2. Frontend
 
 ```bash

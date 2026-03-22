@@ -33,6 +33,16 @@ async def google_calendar_callback(
     state: str | None = Query(default=None),
     error: str | None = Query(default=None),
 ):
+    """
+    Handle the browser redirect back from Google OAuth.
+
+    This returns a tiny HTML page on purpose because Google redirects a browser
+    directly to this endpoint. At this stage, the simplest UX is to show a human-
+    readable success/failure page after the token exchange completes.
+
+    Later, once the frontend integration is fuller, this could instead redirect
+    back into a dedicated frontend route with a more polished connected-state UX.
+    """
     if error:
         return HTMLResponse(
             content=f"<html><body><h1>Google Calendar connection failed</h1><p>{error}</p></body></html>",

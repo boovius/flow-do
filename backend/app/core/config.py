@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     CRON_SECRET: str = ""
 
     # Google Calendar OAuth configuration.
+    # These are populated from backend/.env (or the deployed service environment).
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = ""
