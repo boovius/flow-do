@@ -6,6 +6,7 @@ from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
 from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
 from app.services.maintenance import get_count, inject_counts
+from app.services.lineage_colors import assign_color_to_lineage_chain, assign_shared_color_for_parent_child
 
 router = APIRouter()
 
@@ -37,16 +38,35 @@ async def create_do(
     payload: DoCreate,
     current_user: dict = Depends(get_current_user),
 ):
+    user_id = _user_id(current_user)
+
     insert_data: dict = {
-        "user_id": _user_id(current_user),
+        "user_id": user_id,
         "title": payload.title,
         "time_unit": payload.time_unit.value,
         "do_type": payload.do_type.value,
     }
+    if payload.color_hex is not None:
+        insert_data["color_hex"] = payload.color_hex
     if payload.parent_id is not None:
         insert_data["parent_id"] = str(payload.parent_id)
+
     result = supabase.table("dos").insert(insert_data).execute()
-    return result.data[0]
+    created = result.data[0]
+
+    if payload.parent_id is not None:
+        try:
+            shared_color = assign_shared_color_for_parent_child(
+                parent_id=str(payload.parent_id),
+                child_id=str(created["id"]),
+                user_id=user_id,
+                child_color_hex=created.get("color_hex"),
+            )
+            created["color_hex"] = shared_color
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
+
+    return created
 
 
 @router.patch("/{do_id}", response_model=Do)
@@ -58,7 +78,7 @@ async def update_do(
     # Verify ownership before updating
     existing = (
         supabase.table("dos")
-        .select("id")
+        .select("id,color_hex")
         .eq("id", do_id)
         .eq("user_id", _user_id(current_user))
         .execute()
@@ -73,22 +93,42 @@ async def update_do(
         updates["time_unit"] = updates["time_unit"].value
         if payload.time_unit != TimeUnit.today:
             updates["priority_date"] = None
+    link_parent_id: str | None = None
+    link_child_color: str | None = None
+    explicit_lineage_color: str | None = None
     if "parent_id" in updates:
         if updates["parent_id"] is not None:
-            parent_check = (
-                supabase.table("dos")
-                .select("id")
-                .eq("id", str(updates["parent_id"]))
-                .eq("user_id", _user_id(current_user))
-                .execute()
-            )
-            if not parent_check.data:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
-            updates["parent_id"] = str(updates["parent_id"])
+            link_parent_id = str(updates["parent_id"])
+            link_child_color = updates.get("color_hex", existing.data[0].get("color_hex"))
+            updates["parent_id"] = link_parent_id
         # None is left as None to unset the parent_id
+
+    if "color_hex" in updates and updates["color_hex"] is not None:
+        explicit_lineage_color = updates["color_hex"]
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
     do = result.data[0]
+
+    if link_parent_id is not None:
+        try:
+            shared_color = assign_shared_color_for_parent_child(
+                parent_id=link_parent_id,
+                child_id=do_id,
+                user_id=_user_id(current_user),
+                child_color_hex=link_child_color,
+            )
+            do["color_hex"] = shared_color
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
+    elif explicit_lineage_color is not None:
+        try:
+            do["color_hex"] = assign_color_to_lineage_chain(
+                start_do_id=do_id,
+                user_id=_user_id(current_user),
+                color_hex=explicit_lineage_color,
+            )
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Do not found")
     if do["do_type"] == DoType.maintenance.value:
         do["completion_count"] = get_count(do["id"], do["time_unit"], datetime.now(timezone.utc))
     today_str = datetime.now(timezone.utc).date().isoformat()

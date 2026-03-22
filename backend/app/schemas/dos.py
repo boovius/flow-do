@@ -23,6 +23,7 @@ class DoCreate(BaseModel):
     time_unit: TimeUnit
     do_type: DoType = DoType.normal
     parent_id: uuid.UUID | None = None
+    color_hex: str | None = None
 
 
 class DoUpdate(BaseModel):
@@ -31,6 +32,7 @@ class DoUpdate(BaseModel):
     completed_at: datetime | None = None
     time_unit: TimeUnit | None = None
     parent_id: uuid.UUID | None = None
+    color_hex: str | None = None
 
 
 class Do(BaseModel):
@@ -47,4 +49,5 @@ class Do(BaseModel):
     created_at: datetime
     updated_at: datetime
     parent_id: uuid.UUID | None = None
+    color_hex: str | None = None
     is_today_priority: bool = False
