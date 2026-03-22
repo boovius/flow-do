@@ -11,6 +11,12 @@ from app.services.google_oauth import (
     google_oauth_configured,
     parse_google_oauth_state,
 )
+from app.services.google_calendar_connections import (
+    delete_google_calendar_connection,
+    get_google_calendar_connection,
+    upsert_google_calendar_connection,
+)
+from app.schemas.google_calendar import GoogleCalendarConnectionStatus
 
 router = APIRouter()
 
@@ -25,6 +31,26 @@ async def google_calendar_connect(current_user: dict = Depends(get_current_user)
 
     state = create_google_oauth_state(user_id=current_user["sub"])
     return {"auth_url": build_google_auth_url(state=state)}
+
+
+@router.get("/status", response_model=GoogleCalendarConnectionStatus)
+async def google_calendar_status(current_user: dict = Depends(get_current_user)):
+    connection = get_google_calendar_connection(user_id=current_user["sub"])
+    if not connection:
+        return GoogleCalendarConnectionStatus(connected=False)
+    return GoogleCalendarConnectionStatus(
+        connected=True,
+        google_email=connection.get("google_email"),
+        scope=connection.get("scope"),
+        token_type=connection.get("token_type"),
+        expires_at=connection.get("expires_at"),
+    )
+
+
+@router.post("/disconnect")
+async def google_calendar_disconnect(current_user: dict = Depends(get_current_user)):
+    delete_google_calendar_connection(user_id=current_user["sub"])
+    return {"ok": True}
 
 
 @router.get("/callback", response_class=HTMLResponse)
@@ -59,16 +85,20 @@ async def google_calendar_callback(
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google token exchange failed")
 
     profile = await fetch_google_userinfo(access_token=access_token)
+    upsert_google_calendar_connection(
+        user_id=state_payload["user_id"],
+        profile=profile,
+        token_payload=token_payload,
+    )
 
-    # Persistence is intentionally deferred to issue #19.
     html = f"""
     <html>
       <body style=\"font-family: sans-serif; padding: 24px;\">
-        <h1>Google Calendar connection verified</h1>
-        <p><strong>Status:</strong> OAuth callback succeeded.</p>
+        <h1>Google Calendar connected</h1>
+        <p><strong>Status:</strong> OAuth callback succeeded and the connection was saved.</p>
         <p><strong>Google account:</strong> {profile.get('email', 'unknown')}</p>
         <p><strong>Flow-Do user:</strong> {state_payload.get('user_id')}</p>
-        <p>Token persistence and connected-state storage are handled in the next implementation step.</p>
+        <p>You can return to Flow-Do and continue setup.</p>
       </body>
     </html>
     """
