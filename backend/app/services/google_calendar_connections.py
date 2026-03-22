@@ -10,6 +10,13 @@ def _iso_or_none(value: datetime | None) -> str | None:
 
 
 def upsert_google_calendar_connection(*, user_id: str, profile: dict, token_payload: dict) -> dict:
+    """
+    Create or update the persisted Google Calendar connection row for a Flow-Do user.
+
+    `google_subject` stores Google's stable account subject identifier (`sub` from
+    the userinfo payload). That gives us an account identity field that is more
+    stable and semantically correct than email alone.
+    """
     expires_at = None
     expires_in = token_payload.get("expires_in")
     if expires_in is not None:
@@ -36,6 +43,16 @@ def upsert_google_calendar_connection(*, user_id: str, profile: dict, token_payl
 
 
 def get_google_calendar_connection(*, user_id: str) -> dict | None:
+    """
+    Return the persisted Google Calendar connection row for a user, if one exists.
+
+    `maybe_single()` is a Supabase helper meaning:
+    - return a single row if exactly one matches
+    - return `None`/empty data if zero rows match
+    - avoid treating the no-row case as an exception for this lookup
+
+    That fits this table because we enforce one Google Calendar connection row per user.
+    """
     result = (
         supabase.table("google_calendar_connections")
         .select("id,user_id,google_email,google_subject,scope,token_type,expires_at,created_at,updated_at")
@@ -47,6 +64,7 @@ def get_google_calendar_connection(*, user_id: str) -> dict | None:
 
 
 def get_google_calendar_token_data(*, user_id: str) -> dict | None:
+    """Return the token-related fields for a user's Google Calendar connection, if present."""
     result = (
         supabase.table("google_calendar_connections")
         .select("access_token,refresh_token,expires_at,scope,token_type")
@@ -58,4 +76,5 @@ def get_google_calendar_token_data(*, user_id: str) -> dict | None:
 
 
 def delete_google_calendar_connection(*, user_id: str) -> None:
+    """Delete a user's persisted Google Calendar connection, if it exists."""
     supabase.table("google_calendar_connections").delete().eq("user_id", user_id).execute()
