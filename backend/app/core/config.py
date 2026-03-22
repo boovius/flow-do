@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_SERVICE_KEY: str
 
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:5174"]
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
