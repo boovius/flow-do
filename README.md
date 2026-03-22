@@ -61,6 +61,16 @@ uvicorn app.main:app --reload
 
 API docs are available at `http://localhost:8000/docs` once the server is running.
 
+### Google Calendar OAuth notes
+If you want to test Google Calendar OAuth locally, you will also need:
+- a Google Cloud project
+- Google Calendar API enabled
+- OAuth client credentials
+- a redirect URI registered for:
+  - `http://localhost:8000/api/v1/integrations/google-calendar/callback`
+
+See `docs/google-calendar-setup-checklist.md` for the human-in-the-loop setup steps.
+
 ### 2. Frontend
 
 ```bash
@@ -90,6 +100,10 @@ SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_KEY=your-service-role-key
 ALLOWED_ORIGINS=http://localhost:5173
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/integrations/google-calendar/callback
+GOOGLE_OAUTH_STATE_SECRET=your-google-oauth-state-secret
 ```
 
 ### `frontend/.env`
