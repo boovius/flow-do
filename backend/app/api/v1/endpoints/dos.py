@@ -6,7 +6,7 @@ from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
 from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
 from app.services.maintenance import get_count, inject_counts
-from app.services.colors import resolve_shared_lineage_color
+from app.services.lineage_colors import assign_shared_color_for_parent_child
 
 router = APIRouter()
 
@@ -39,7 +39,6 @@ async def create_do(
     current_user: dict = Depends(get_current_user),
 ):
     user_id = _user_id(current_user)
-    parent_row = None
 
     insert_data: dict = {
         "user_id": user_id,
@@ -49,27 +48,23 @@ async def create_do(
     }
     if payload.color_hex is not None:
         insert_data["color_hex"] = payload.color_hex
-
     if payload.parent_id is not None:
-        parent_check = (
-            supabase.table("dos")
-            .select("id,color_hex")
-            .eq("id", str(payload.parent_id))
-            .eq("user_id", user_id)
-            .execute()
-        )
-        if not parent_check.data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
-        parent_row = parent_check.data[0]
         insert_data["parent_id"] = str(payload.parent_id)
-        shared_color = resolve_shared_lineage_color(parent_row.get("color_hex"), insert_data.get("color_hex"))
-        insert_data["color_hex"] = shared_color
 
     result = supabase.table("dos").insert(insert_data).execute()
     created = result.data[0]
 
-    if parent_row is not None and not parent_row.get("color_hex"):
-        supabase.table("dos").update({"color_hex": created.get("color_hex")}).eq("id", parent_row["id"]).execute()
+    if payload.parent_id is not None:
+        try:
+            shared_color = assign_shared_color_for_parent_child(
+                parent_id=str(payload.parent_id),
+                child_id=str(created["id"]),
+                user_id=user_id,
+                child_color_hex=created.get("color_hex"),
+            )
+            created["color_hex"] = shared_color
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
 
     return created
 
@@ -98,27 +93,29 @@ async def update_do(
         updates["time_unit"] = updates["time_unit"].value
         if payload.time_unit != TimeUnit.today:
             updates["priority_date"] = None
+    link_parent_id: str | None = None
+    link_child_color: str | None = None
     if "parent_id" in updates:
         if updates["parent_id"] is not None:
-            parent_check = (
-                supabase.table("dos")
-                .select("id,color_hex")
-                .eq("id", str(updates["parent_id"]))
-                .eq("user_id", _user_id(current_user))
-                .execute()
-            )
-            if not parent_check.data:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
-            parent_row = parent_check.data[0]
-            current_child_color = updates.get("color_hex", existing.data[0].get("color_hex"))
-            shared_color = resolve_shared_lineage_color(parent_row.get("color_hex"), current_child_color)
-            updates["parent_id"] = str(updates["parent_id"])
-            updates["color_hex"] = shared_color
-            if not parent_row.get("color_hex"):
-                supabase.table("dos").update({"color_hex": shared_color}).eq("id", parent_row["id"]).execute()
+            link_parent_id = str(updates["parent_id"])
+            link_child_color = updates.get("color_hex", existing.data[0].get("color_hex"))
+            updates["parent_id"] = link_parent_id
         # None is left as None to unset the parent_id
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
+    do = result.data[0]
+
+    if link_parent_id is not None:
+        try:
+            shared_color = assign_shared_color_for_parent_child(
+                parent_id=link_parent_id,
+                child_id=do_id,
+                user_id=_user_id(current_user),
+                child_color_hex=link_child_color,
+            )
+            do["color_hex"] = shared_color
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
     do = result.data[0]
     if do["do_type"] == DoType.maintenance.value:
         do["completion_count"] = get_count(do["id"], do["time_unit"], datetime.now(timezone.utc))

@@ -138,6 +138,19 @@ This keeps implementation understandable while delivering the main UX value.
 
 ---
 
+## Backfill for Existing Linked Dos
+Add a lightweight script to assign lineage colors to existing dos that already have parent/child relationships.
+
+### Proposed script
+- `backend/scripts/backfill_lineage_colors.py`
+
+### Purpose
+- walk existing dos with `parent_id`
+- assign shared lineage colors using the same backend service rules as new links
+- avoid leaving old linked data visually uncolored after the feature ships
+
+---
+
 ## Suggested Follow-Up After First Pass
 - add manual hex-code override option
 - decide whether colors should propagate to all descendants recursively
