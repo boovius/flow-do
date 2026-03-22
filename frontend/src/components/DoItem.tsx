@@ -423,10 +423,12 @@ export function DoItem({ item }: Props) {
           ) : (
             item.flow_count > 0 && !item.completed && (
               <span
-                className="text-xs text-[#7b8ea6]/60 flex-none"
+                className="flex-none inline-flex items-center gap-1 rounded-full border border-[#7b8ea6]/20 bg-[#7b8ea6]/8 px-2 py-0.5 text-[11px] font-medium text-[#52657f]"
                 title={`Flowed up ${item.flow_count} time${item.flow_count === 1 ? "" : "s"}`}
+                aria-label={`Flowed up ${item.flow_count} time${item.flow_count === 1 ? "" : "s"}`}
               >
-                ↑{item.flow_count}
+                <span aria-hidden>↑</span>
+                <span>Flowed {item.flow_count}×</span>
               </span>
             )
           )}
