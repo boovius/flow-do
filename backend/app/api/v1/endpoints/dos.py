@@ -6,7 +6,7 @@ from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
 from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
 from app.services.maintenance import get_count, inject_counts
-from app.services.lineage_colors import assign_shared_color_for_parent_child
+from app.services.lineage_colors import assign_color_to_lineage_chain, assign_shared_color_for_parent_child
 
 router = APIRouter()
 
@@ -95,12 +95,16 @@ async def update_do(
             updates["priority_date"] = None
     link_parent_id: str | None = None
     link_child_color: str | None = None
+    explicit_lineage_color: str | None = None
     if "parent_id" in updates:
         if updates["parent_id"] is not None:
             link_parent_id = str(updates["parent_id"])
             link_child_color = updates.get("color_hex", existing.data[0].get("color_hex"))
             updates["parent_id"] = link_parent_id
         # None is left as None to unset the parent_id
+
+    if "color_hex" in updates and updates["color_hex"] is not None:
+        explicit_lineage_color = updates["color_hex"]
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
     do = result.data[0]
@@ -116,7 +120,15 @@ async def update_do(
             do["color_hex"] = shared_color
         except ValueError:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
-    do = result.data[0]
+    elif explicit_lineage_color is not None:
+        try:
+            do["color_hex"] = assign_color_to_lineage_chain(
+                start_do_id=do_id,
+                user_id=_user_id(current_user),
+                color_hex=explicit_lineage_color,
+            )
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Do not found")
     if do["do_type"] == DoType.maintenance.value:
         do["completion_count"] = get_count(do["id"], do["time_unit"], datetime.now(timezone.utc))
     today_str = datetime.now(timezone.utc).date().isoformat()

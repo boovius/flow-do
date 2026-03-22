@@ -1,10 +1,10 @@
 import { useContext, useEffect, useRef, useState } from "react"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
-import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo, useTogglePriority } from "@/hooks/useDos"
+import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo, useTogglePriority, useSetLineageColor } from "@/hooks/useDos"
 import { Star } from "lucide-react"
 import { getPeriodLabel } from "@/lib/time"
-import { hexToRgba } from "@/lib/colors"
+import { hexToRgba, isValidHexColor, LINEAGE_COLOR_OPTIONS, normalizeHexColor } from "@/lib/colors"
 import { AncestryContext } from "@/components/FlowBoard"
 import { ParentPicker } from "@/components/ParentPicker"
 import { AncestryPanel } from "@/components/AncestryPanel"
@@ -41,6 +41,7 @@ export function DoItem({ item }: Props) {
   const move = useMoveDo()
   const createDo = useCreateDo()
   const togglePriority = useTogglePriority()
+  const setLineageColor = useSetLineageColor()
 
   const { hoveredDoId, ancestorIds, onHover, allDos, movingDoId } = useContext(AncestryContext)
   const isHovered = hoveredDoId === item.id
@@ -69,6 +70,8 @@ export function DoItem({ item }: Props) {
   const [showPicker, setShowPicker] = useState(false)
   const [showAddChild, setShowAddChild] = useState(false)
   const [showAncestryPanel, setShowAncestryPanel] = useState(false)
+  const [showColorMenu, setShowColorMenu] = useState(false)
+  const [colorInput, setColorInput] = useState(item.color_hex ?? "")
 
   const optionsRef = useRef<HTMLDivElement>(null)
 
@@ -79,11 +82,16 @@ export function DoItem({ item }: Props) {
       if (optionsRef.current && !optionsRef.current.contains(e.target as Node)) {
         setShowOptions(false)
         setShowMoveMenu(false)
+        setShowColorMenu(false)
       }
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [showOptions])
+
+  useEffect(() => {
+    setColorInput(item.color_hex ?? "")
+  }, [item.color_hex])
 
   const startEditing = () => {
     setDraftTitle(item.title)
@@ -106,8 +114,11 @@ export function DoItem({ item }: Props) {
   const isMaintenance = item.do_type === "maintenance"
   const hasParent = !!item.parent_id
   const hasChildren = allDos.some((d) => d.parent_id === item.id)
+  const canEditLineageColor = hasParent || hasChildren
   const lineageBackground = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.2 : 0.14) : undefined
   const lineageBorder = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.45 : 0.3) : undefined
+  const normalizedColorInput = normalizeHexColor(colorInput)
+  const colorInputValid = isValidHexColor(colorInput)
 
   // Time-unit navigation
   const currentIdx = TIME_UNITS.indexOf(item.time_unit)
@@ -297,6 +308,81 @@ export function DoItem({ item }: Props) {
                   <PencilIcon />
                   Rename
                 </button>
+
+                {/* Set lineage color */}
+                {canEditLineageColor && (
+                  <>
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowColorMenu((v) => !v)
+                        setShowMoveMenu(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#202945] hover:bg-[#202945]/5 flex items-center gap-2"
+                    >
+                      <PaletteIcon />
+                      <span className="flex-1">Set lineage color</span>
+                      <span className="text-[#a9bab3] text-[10px]">{showColorMenu ? "▲" : "▼"}</span>
+                    </button>
+                    {showColorMenu && (
+                      <div className="px-3 pb-3 flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-1">
+                          {LINEAGE_COLOR_OPTIONS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setLineageColor.mutate({ id: item.id, colorHex: color })
+                                setColorInput(color)
+                                setShowColorMenu(false)
+                                setShowOptions(false)
+                              }}
+                              className={cn(
+                                "h-6 w-6 rounded-full border transition-transform hover:scale-105",
+                                item.color_hex === color ? "border-[#202945] ring-2 ring-[#202945]/15" : "border-black/10",
+                              )}
+                              style={{ backgroundColor: color }}
+                              aria-label={`Use lineage color ${color}`}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={colorInput}
+                            onChange={(e) => setColorInput(e.target.value)}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="#AABBCC"
+                            className="flex-1 rounded-md border border-black/10 bg-white px-2 py-1 text-xs text-[#202945] outline-none focus:border-[#202945]/30"
+                          />
+                          <button
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!colorInputValid) return
+                              setLineageColor.mutate({ id: item.id, colorHex: normalizedColorInput })
+                              setColorInput(normalizedColorInput)
+                              setShowColorMenu(false)
+                              setShowOptions(false)
+                            }}
+                            disabled={!colorInputValid || setLineageColor.isPending}
+                            className="rounded-md bg-[#202945] px-2 py-1 text-xs text-white disabled:opacity-40"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                        {!colorInputValid && colorInput.trim().length > 0 && (
+                          <p className="text-[11px] text-red-500">Enter a 6-digit hexadecimal color.</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
 
                 {/* Set priority — only for Today dos */}
                 {item.time_unit === "today" && (
@@ -663,6 +749,23 @@ function PencilIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  )
+}
+
+function PaletteIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M8 2.25a5.75 5.75 0 1 0 0 11.5h.9c.58 0 1.05-.47 1.05-1.05 0-.27-.1-.52-.28-.72a1.03 1.03 0 0 1-.27-.7c0-.58.47-1.05 1.05-1.05h.85A2.7 2.7 0 0 0 14 7.5C14 4.6 11.4 2.25 8 2.25Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="5.25" cy="7" r=".75" fill="currentColor" />
+      <circle cx="7.75" cy="5.5" r=".75" fill="currentColor" />
+      <circle cx="10.25" cy="7" r=".75" fill="currentColor" />
     </svg>
   )
 }

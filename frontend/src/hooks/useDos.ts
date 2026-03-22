@@ -267,3 +267,19 @@ export function useTogglePriority() {
     },
   })
 }
+
+export function useSetLineageColor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, colorHex }: { id: string; colorHex: string }) => {
+      const { data } = await api.patch<Do>(`/api/v1/dos/${id}`, { color_hex: colorHex })
+      return data
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dos", "all"] })
+      for (const unit of ["today", "week", "month", "season", "year", "multi_year"] as const) {
+        void queryClient.invalidateQueries({ queryKey: ["dos", unit] })
+      }
+    },
+  })
+}
