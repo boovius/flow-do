@@ -1,3 +1,6 @@
+from datetime import date, datetime, timezone
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
 
@@ -10,13 +13,17 @@ from app.services.google_oauth import (
     fetch_google_userinfo,
     google_oauth_configured,
     parse_google_oauth_state,
+    refresh_google_access_token,
 )
 from app.services.google_calendar_connections import (
     delete_google_calendar_connection,
     get_google_calendar_connection,
+    get_google_calendar_token_data,
     upsert_google_calendar_connection,
 )
+from app.services.google_calendar import fetch_primary_calendar_events_for_day, update_google_calendar_tokens
 from app.schemas.google_calendar import GoogleCalendarConnectionStatus
+from app.schemas.google_calendar_events import GoogleCalendarTodayEventsResponse
 
 router = APIRouter()
 
@@ -45,6 +52,38 @@ async def google_calendar_status(current_user: dict = Depends(get_current_user))
         token_type=connection.get("token_type"),
         expires_at=connection.get("expires_at"),
     )
+
+
+@router.get("/events/today", response_model=GoogleCalendarTodayEventsResponse)
+async def google_calendar_today_events(current_user: dict = Depends(get_current_user)):
+    token_data = get_google_calendar_token_data(user_id=current_user["sub"])
+    if not token_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Google Calendar is not connected")
+
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token")
+    expires_at_raw = token_data.get("expires_at")
+
+    if not access_token:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google Calendar access token missing")
+
+    if expires_at_raw:
+        expires_at = datetime.fromisoformat(expires_at_raw.replace("Z", "+00:00"))
+        if expires_at <= datetime.now(timezone.utc):
+            if not refresh_token:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google Calendar token expired")
+            refreshed = await refresh_google_access_token(refresh_token=refresh_token)
+            if not refreshed.get("access_token"):
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google token refresh failed")
+            update_google_calendar_tokens(user_id=current_user["sub"], token_payload=refreshed)
+            access_token = refreshed["access_token"]
+
+    try:
+        events = await fetch_primary_calendar_events_for_day(access_token=access_token, day=date.today())
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail="Google Calendar request failed") from exc
+
+    return GoogleCalendarTodayEventsResponse(date=date.today(), events=events)
 
 
 @router.post("/disconnect")

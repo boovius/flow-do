@@ -103,6 +103,21 @@ async def exchange_google_code(*, code: str) -> dict:
         return response.json()
 
 
+async def refresh_google_access_token(*, refresh_token: str) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
+        response = await client.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
 async def fetch_google_userinfo(*, access_token: str) -> dict:
     async with httpx.AsyncClient(timeout=20) as client:
         response = await client.get(
