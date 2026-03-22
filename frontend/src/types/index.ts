@@ -23,5 +23,6 @@ export interface Do {
   created_at: string
   updated_at: string
   parent_id: string | null
+  color_hex: string | null
   is_today_priority: boolean
 }

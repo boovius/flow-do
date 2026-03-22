@@ -6,6 +6,7 @@ from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
 from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
 from app.services.maintenance import get_count, inject_counts
+from app.services.colors import resolve_shared_lineage_color
 
 router = APIRouter()
 
@@ -37,16 +38,40 @@ async def create_do(
     payload: DoCreate,
     current_user: dict = Depends(get_current_user),
 ):
+    user_id = _user_id(current_user)
+    parent_row = None
+
     insert_data: dict = {
-        "user_id": _user_id(current_user),
+        "user_id": user_id,
         "title": payload.title,
         "time_unit": payload.time_unit.value,
         "do_type": payload.do_type.value,
     }
+    if payload.color_hex is not None:
+        insert_data["color_hex"] = payload.color_hex
+
     if payload.parent_id is not None:
+        parent_check = (
+            supabase.table("dos")
+            .select("id,color_hex")
+            .eq("id", str(payload.parent_id))
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if not parent_check.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
+        parent_row = parent_check.data[0]
         insert_data["parent_id"] = str(payload.parent_id)
+        shared_color = resolve_shared_lineage_color(parent_row.get("color_hex"), insert_data.get("color_hex"))
+        insert_data["color_hex"] = shared_color
+
     result = supabase.table("dos").insert(insert_data).execute()
-    return result.data[0]
+    created = result.data[0]
+
+    if parent_row is not None and not parent_row.get("color_hex"):
+        supabase.table("dos").update({"color_hex": created.get("color_hex")}).eq("id", parent_row["id"]).execute()
+
+    return created
 
 
 @router.patch("/{do_id}", response_model=Do)
@@ -58,7 +83,7 @@ async def update_do(
     # Verify ownership before updating
     existing = (
         supabase.table("dos")
-        .select("id")
+        .select("id,color_hex")
         .eq("id", do_id)
         .eq("user_id", _user_id(current_user))
         .execute()
@@ -77,14 +102,20 @@ async def update_do(
         if updates["parent_id"] is not None:
             parent_check = (
                 supabase.table("dos")
-                .select("id")
+                .select("id,color_hex")
                 .eq("id", str(updates["parent_id"]))
                 .eq("user_id", _user_id(current_user))
                 .execute()
             )
             if not parent_check.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
+            parent_row = parent_check.data[0]
+            current_child_color = updates.get("color_hex", existing.data[0].get("color_hex"))
+            shared_color = resolve_shared_lineage_color(parent_row.get("color_hex"), current_child_color)
             updates["parent_id"] = str(updates["parent_id"])
+            updates["color_hex"] = shared_color
+            if not parent_row.get("color_hex"):
+                supabase.table("dos").update({"color_hex": shared_color}).eq("id", parent_row["id"]).execute()
         # None is left as None to unset the parent_id
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()

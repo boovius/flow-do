@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo, useTogglePriority } from "@/hooks/useDos"
 import { Star } from "lucide-react"
 import { getPeriodLabel } from "@/lib/time"
+import { hexToRgba } from "@/lib/colors"
 import { AncestryContext } from "@/components/FlowBoard"
 import { ParentPicker } from "@/components/ParentPicker"
 import { AncestryPanel } from "@/components/AncestryPanel"
@@ -105,6 +106,8 @@ export function DoItem({ item }: Props) {
   const isMaintenance = item.do_type === "maintenance"
   const hasParent = !!item.parent_id
   const hasChildren = allDos.some((d) => d.parent_id === item.id)
+  const lineageBackground = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.2 : 0.14) : undefined
+  const lineageBorder = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.45 : 0.3) : undefined
 
   // Time-unit navigation
   const currentIdx = TIME_UNITS.indexOf(item.time_unit)
@@ -144,9 +147,13 @@ export function DoItem({ item }: Props) {
         ref={setNodeRef}
         {...attributes}
         {...listeners}
-        style={{ cursor: isDragging ? "grabbing" : "grab" }}
+        style={{
+          cursor: isDragging ? "grabbing" : "grab",
+          backgroundColor: lineageBackground,
+          borderColor: lineageBorder,
+        }}
         className={cn(
-          "flex-1 relative rounded-xl transition-all overflow-visible",
+          "flex-1 relative rounded-xl transition-all overflow-visible border border-transparent",
           isDragging ? "opacity-30" : "bg-white/70 shadow-sm hover:bg-white/90 hover:shadow-md",
           isDropOver && !isDragging && "ring-2 ring-blue-400 ring-offset-1",
           item.is_today_priority && "!bg-amber-50/80 border border-amber-300/60",
