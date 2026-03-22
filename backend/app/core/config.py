@@ -26,5 +26,12 @@ class Settings(BaseSettings):
     # Set this to a long random string. Generate one with: openssl rand -hex 32
     CRON_SECRET: str = ""
 
+    # Google Calendar OAuth configuration.
+    # These are populated from backend/.env (or the deployed service environment).
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""
+    GOOGLE_OAUTH_STATE_SECRET: str = ""
+
 
 settings = Settings()
