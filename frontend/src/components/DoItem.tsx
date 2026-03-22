@@ -115,8 +115,8 @@ export function DoItem({ item }: Props) {
   const hasParent = !!item.parent_id
   const hasChildren = allDos.some((d) => d.parent_id === item.id)
   const canEditLineageColor = hasParent || hasChildren
-  const lineageBackground = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.2 : 0.14) : undefined
-  const lineageBorder = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.45 : 0.3) : undefined
+  const lineageBackground = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.8 : 0.6) : undefined
+  const lineageBorder = item.color_hex ? hexToRgba(item.color_hex, item.is_today_priority ? 0.9 : 0.7) : undefined
   const normalizedColorInput = normalizeHexColor(colorInput)
   const colorInputValid = isValidHexColor(colorInput)
 
