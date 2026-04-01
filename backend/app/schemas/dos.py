@@ -48,3 +48,10 @@ class Do(BaseModel):
     updated_at: datetime
     parent_id: uuid.UUID | None = None
     is_today_priority: bool = False
+
+
+class MaintenanceLog(BaseModel):
+    id: uuid.UUID
+    do_id: uuid.UUID
+    user_id: uuid.UUID
+    logged_at: datetime

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.middleware.auth import get_current_user
 from app.core.supabase import supabase
-from app.schemas.dos import Do, DoCreate, DoUpdate, TimeUnit, DoType
+from app.schemas.dos import Do, DoCreate, DoUpdate, MaintenanceLog, TimeUnit, DoType
 from app.services.maintenance import get_count, inject_counts
 
 router = APIRouter()
@@ -55,7 +55,6 @@ async def update_do(
     payload: DoUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    # Verify ownership before updating
     existing = (
         supabase.table("dos")
         .select("id")
@@ -85,7 +84,6 @@ async def update_do(
             if not parent_check.data:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent do not found")
             updates["parent_id"] = str(updates["parent_id"])
-        # None is left as None to unset the parent_id
 
     result = supabase.table("dos").update(updates).eq("id", do_id).execute()
     do = result.data[0]
@@ -94,6 +92,34 @@ async def update_do(
     today_str = datetime.now(timezone.utc).date().isoformat()
     do["is_today_priority"] = (do.get("priority_date") == today_str)
     return do
+
+
+@router.get("/{do_id}/logs", response_model=list[MaintenanceLog])
+async def list_maintenance_logs(
+    do_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    existing = (
+        supabase.table("dos")
+        .select("id,do_type")
+        .eq("id", do_id)
+        .eq("user_id", _user_id(current_user))
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Do not found")
+    if existing.data[0]["do_type"] != DoType.maintenance.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only maintenance dos have logs")
+
+    result = (
+        supabase.table("maintenance_logs")
+        .select("*")
+        .eq("do_id", do_id)
+        .eq("user_id", _user_id(current_user))
+        .order("logged_at", desc=True)
+        .execute()
+    )
+    return result.data or []
 
 
 @router.post("/{do_id}/log", response_model=Do)
@@ -143,10 +169,8 @@ async def toggle_priority(
     today_str = datetime.now(timezone.utc).date().isoformat()
 
     if do_row.get("priority_date") == today_str:
-        # Toggle off
         result = supabase.table("dos").update({"priority_date": None}).eq("id", do_id).execute()
     else:
-        # Clear any existing today-priority for this user, then set this one
         supabase.table("dos").update({"priority_date": None}).eq("user_id", user_id).eq("priority_date", today_str).execute()
         result = supabase.table("dos").update({"priority_date": today_str}).eq("id", do_id).execute()
 

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api"
-import type { Do, DoType, TimeUnit } from "@/types"
+import type { Do, DoType, MaintenanceLog, TimeUnit } from "@/types"
 
 export function useDos(timeUnit: TimeUnit) {
   return useQuery({
@@ -108,6 +108,17 @@ export function useUnsetParent() {
   })
 }
 
+export function useMaintenanceLogs(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["maintenance-logs", id],
+    enabled,
+    queryFn: async () => {
+      const { data } = await api.get<MaintenanceLog[]>(`/api/v1/dos/${id}/logs`)
+      return data
+    },
+  })
+}
+
 export function useLogMaintenance() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -117,21 +128,23 @@ export function useLogMaintenance() {
     },
     onMutate: async ({ id, timeUnit }) => {
       await queryClient.cancelQueries({ queryKey: ["dos", timeUnit] })
+      await queryClient.cancelQueries({ queryKey: ["maintenance-logs", id] })
       const previous = queryClient.getQueryData<Do[]>(["dos", timeUnit])
       queryClient.setQueryData<Do[]>(["dos", timeUnit], (old) =>
         old?.map((d) =>
           d.id === id ? { ...d, completion_count: d.completion_count + 1 } : d,
         ) ?? [],
       )
-      return { previous, timeUnit }
+      return { previous, timeUnit, id }
     },
     onError: (_err, _vars, context) => {
       if (context?.previous !== undefined) {
         queryClient.setQueryData(["dos", context.timeUnit], context.previous)
       }
     },
-    onSettled: (_data, _err, { timeUnit }) => {
+    onSettled: (_data, _err, { id, timeUnit }) => {
       void queryClient.invalidateQueries({ queryKey: ["dos", timeUnit] })
+      void queryClient.invalidateQueries({ queryKey: ["maintenance-logs", id] })
     },
   })
 }

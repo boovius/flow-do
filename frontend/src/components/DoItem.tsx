@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from "react"
 import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { cn } from "@/lib/utils"
-import { useToggleDo, useDeleteDo, useLogMaintenance, useRenameDo, useMoveDo, useCreateDo, useTogglePriority } from "@/hooks/useDos"
+import { useToggleDo, useDeleteDo, useLogMaintenance, useMaintenanceLogs, useRenameDo, useMoveDo, useCreateDo, useTogglePriority } from "@/hooks/useDos"
 import { Star } from "lucide-react"
 import { getPeriodLabel } from "@/lib/time"
 import { AncestryContext } from "@/components/FlowBoard"
@@ -27,6 +27,11 @@ const CHILD_UNIT: Record<TimeUnit, TimeUnit> = {
   week: "today",
   today: "today",
 }
+
+const maintenanceLogDateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+})
 
 interface Props {
   item: Do
@@ -68,6 +73,7 @@ export function DoItem({ item }: Props) {
   const [showPicker, setShowPicker] = useState(false)
   const [showAddChild, setShowAddChild] = useState(false)
   const [showAncestryPanel, setShowAncestryPanel] = useState(false)
+  const [showMaintenanceHistory, setShowMaintenanceHistory] = useState(false)
 
   const optionsRef = useRef<HTMLDivElement>(null)
 
@@ -105,6 +111,7 @@ export function DoItem({ item }: Props) {
   const isMaintenance = item.do_type === "maintenance"
   const hasParent = !!item.parent_id
   const hasChildren = allDos.some((d) => d.parent_id === item.id)
+  const maintenanceLogs = useMaintenanceLogs(item.id, isMaintenance && showMaintenanceHistory)
 
   // Time-unit navigation
   const currentIdx = TIME_UNITS.indexOf(item.time_unit)
@@ -410,16 +417,31 @@ export function DoItem({ item }: Props) {
           )}
 
           {isMaintenance ? (
-            <span className="text-xs text-[#7b8ea6]/60 flex-none">
-              {movingDoId === item.id ? (
-                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                  <path fill="currentColor" fillOpacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              ) : (
-                <>{item.completion_count}× {getPeriodLabel(item.time_unit)}</>
-              )}
-            </span>
+            <div className="flex items-center gap-1.5 flex-none">
+              <span className="text-xs text-[#7b8ea6]/60">
+                {movingDoId === item.id ? (
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+                    <path fill="currentColor" fillOpacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <>{item.completion_count}× {getPeriodLabel(item.time_unit)}</>
+                )}
+              </span>
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowMaintenanceHistory((value) => !value)
+                }}
+                className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#7b8ea6] hover:bg-[#202945]/5 hover:text-[#202945] transition-colors"
+                aria-expanded={showMaintenanceHistory}
+                aria-label={showMaintenanceHistory ? "Hide completion history" : "Show completion history"}
+              >
+                <span>History</span>
+                <span className="text-[10px]">{showMaintenanceHistory ? "▲" : "▼"}</span>
+              </button>
+            </div>
           ) : (
             item.flow_count > 0 && !item.completed && (
               <span
@@ -431,6 +453,30 @@ export function DoItem({ item }: Props) {
             )
           )}
         </div>
+
+        {isMaintenance && showMaintenanceHistory && (
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="mx-3 mb-3 rounded-lg border border-[#202945]/10 bg-[#f7f8fb] px-3 py-2"
+          >
+            {maintenanceLogs.isLoading ? (
+              <div className="text-xs text-[#7b8ea6]">Loading completion history…</div>
+            ) : maintenanceLogs.isError ? (
+              <div className="text-xs text-red-500">Couldn’t load completion history.</div>
+            ) : maintenanceLogs.data && maintenanceLogs.data.length > 0 ? (
+              <ul className="space-y-1">
+                {maintenanceLogs.data.map((log) => (
+                  <li key={log.id} className="text-xs text-[#4a587c]">
+                    {maintenanceLogDateFormatter.format(new Date(log.logged_at))}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-xs text-[#7b8ea6]">No completion history yet.</div>
+            )}
+          </div>
+        )}
 
         {/* Parent picker popover */}
         {showPicker && (

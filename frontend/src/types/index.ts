@@ -25,3 +25,10 @@ export interface Do {
   parent_id: string | null
   is_today_priority: boolean
 }
+
+export interface MaintenanceLog {
+  id: string
+  do_id: string
+  user_id: string
+  logged_at: string
+}
