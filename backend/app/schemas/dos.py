@@ -35,7 +35,6 @@ class DoUpdate(BaseModel):
 
 class Do(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
     title: str
     time_unit: TimeUnit
     do_type: DoType
@@ -53,5 +52,4 @@ class Do(BaseModel):
 class MaintenanceLog(BaseModel):
     id: uuid.UUID
     do_id: uuid.UUID
-    user_id: uuid.UUID
     logged_at: datetime

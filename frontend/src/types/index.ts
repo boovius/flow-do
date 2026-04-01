@@ -11,7 +11,6 @@ export interface SortOption {
 
 export interface Do {
   id: string
-  user_id: string
   title: string
   time_unit: TimeUnit
   do_type: DoType
@@ -29,6 +28,5 @@ export interface Do {
 export interface MaintenanceLog {
   id: string
   do_id: string
-  user_id: string
   logged_at: string
 }

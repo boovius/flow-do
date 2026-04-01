@@ -73,7 +73,6 @@ export function DoItem({ item }: Props) {
   const [showPicker, setShowPicker] = useState(false)
   const [showAddChild, setShowAddChild] = useState(false)
   const [showAncestryPanel, setShowAncestryPanel] = useState(false)
-  const [showMaintenanceHistory, setShowMaintenanceHistory] = useState(false)
 
   const optionsRef = useRef<HTMLDivElement>(null)
 
@@ -111,7 +110,6 @@ export function DoItem({ item }: Props) {
   const isMaintenance = item.do_type === "maintenance"
   const hasParent = !!item.parent_id
   const hasChildren = allDos.some((d) => d.parent_id === item.id)
-  const maintenanceLogs = useMaintenanceLogs(item.id, isMaintenance && showMaintenanceHistory)
 
   // Time-unit navigation
   const currentIdx = TIME_UNITS.indexOf(item.time_unit)
@@ -347,7 +345,7 @@ export function DoItem({ item }: Props) {
               : undefined
           }
           className={cn(
-            "flex items-center gap-2 px-3 pb-3.5",
+            "flex flex-wrap items-center gap-2 px-3 pb-3.5",
             isMaintenance && "cursor-pointer",
             isMaintenance && logMaintenance.isPending && "pointer-events-none opacity-60",
           )}
@@ -417,31 +415,12 @@ export function DoItem({ item }: Props) {
           )}
 
           {isMaintenance ? (
-            <div className="flex items-center gap-1.5 flex-none">
-              <span className="text-xs text-[#7b8ea6]/60">
-                {movingDoId === item.id ? (
-                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
-                    <path fill="currentColor" fillOpacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : (
-                  <>{item.completion_count}× {getPeriodLabel(item.time_unit)}</>
-                )}
-              </span>
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowMaintenanceHistory((value) => !value)
-                }}
-                className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#7b8ea6] hover:bg-[#202945]/5 hover:text-[#202945] transition-colors"
-                aria-expanded={showMaintenanceHistory}
-                aria-label={showMaintenanceHistory ? "Hide completion history" : "Show completion history"}
-              >
-                <span>History</span>
-                <span className="text-[10px]">{showMaintenanceHistory ? "▲" : "▼"}</span>
-              </button>
-            </div>
+            <MaintenanceHistorySection
+              doId={item.id}
+              timeUnit={item.time_unit}
+              completionCount={item.completion_count}
+              isMoving={movingDoId === item.id}
+            />
           ) : (
             item.flow_count > 0 && !item.completed && (
               <span
@@ -453,30 +432,6 @@ export function DoItem({ item }: Props) {
             )
           )}
         </div>
-
-        {isMaintenance && showMaintenanceHistory && (
-          <div
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            className="mx-3 mb-3 rounded-lg border border-[#202945]/10 bg-[#f7f8fb] px-3 py-2"
-          >
-            {maintenanceLogs.isLoading ? (
-              <div className="text-xs text-[#7b8ea6]">Loading completion history…</div>
-            ) : maintenanceLogs.isError ? (
-              <div className="text-xs text-red-500">Couldn’t load completion history.</div>
-            ) : maintenanceLogs.data && maintenanceLogs.data.length > 0 ? (
-              <ul className="space-y-1">
-                {maintenanceLogs.data.map((log) => (
-                  <li key={log.id} className="text-xs text-[#4a587c]">
-                    {maintenanceLogDateFormatter.format(new Date(log.logged_at))}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-xs text-[#7b8ea6]">No completion history yet.</div>
-            )}
-          </div>
-        )}
 
         {/* Parent picker popover */}
         {showPicker && (
@@ -528,6 +483,85 @@ export function DoItem({ item }: Props) {
         />
       )}
     </div>
+  )
+}
+
+function MaintenanceHistorySection({
+  doId,
+  timeUnit,
+  completionCount,
+  isMoving,
+}: {
+  doId: string
+  timeUnit: TimeUnit
+  completionCount: number
+  isMoving: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const maintenanceLogs = useMaintenanceLogs(doId, isOpen)
+  const hasHistory = completionCount > 0 || (maintenanceLogs.data?.length ?? 0) > 0
+  const historyCount = maintenanceLogs.data?.length ?? completionCount
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5 flex-none">
+        <span className="text-xs text-[#7b8ea6]/60">
+          {isMoving ? (
+            <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.25" />
+              <path fill="currentColor" fillOpacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <>{completionCount}× {getPeriodLabel(timeUnit)}</>
+          )}
+        </span>
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!hasHistory) return
+            setIsOpen((value) => !value)
+          }}
+          disabled={!hasHistory}
+          className={cn(
+            "flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] transition-colors",
+            hasHistory
+              ? "text-[#7b8ea6] hover:bg-[#202945]/5 hover:text-[#202945]"
+              : "text-[#7b8ea6]/45 cursor-not-allowed",
+          )}
+          aria-expanded={isOpen}
+          aria-label={isOpen ? "Hide completion history" : "Show completion history"}
+        >
+          <span>History ({historyCount})</span>
+          {hasHistory && <span className="text-[10px]">{isOpen ? "▲" : "▼"}</span>}
+        </button>
+      </div>
+
+      {isOpen && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="basis-full mt-1 rounded-lg border border-[#202945]/10 bg-[#f7f8fb] px-3 py-2"
+        >
+          {maintenanceLogs.isLoading ? (
+            <div className="text-xs text-[#7b8ea6]">Loading completion history…</div>
+          ) : maintenanceLogs.isError ? (
+            <div className="text-xs text-red-500">Couldn’t load completion history.</div>
+          ) : maintenanceLogs.data && maintenanceLogs.data.length > 0 ? (
+            <ul className="space-y-1">
+              {maintenanceLogs.data.map((log) => (
+                <li key={log.id} className="text-xs text-[#4a587c]">
+                  {maintenanceLogDateFormatter.format(new Date(log.logged_at))}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-xs text-[#7b8ea6]">No completion history yet.</div>
+          )}
+        </div>
+      )}
+    </>
   )
 }
 

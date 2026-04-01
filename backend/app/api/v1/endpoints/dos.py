@@ -113,7 +113,7 @@ async def list_maintenance_logs(
 
     result = (
         supabase.table("maintenance_logs")
-        .select("*")
+        .select("id,do_id,logged_at")
         .eq("do_id", do_id)
         .eq("user_id", _user_id(current_user))
         .order("logged_at", desc=True)
